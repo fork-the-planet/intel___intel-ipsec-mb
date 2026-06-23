@@ -29,6 +29,7 @@
 # IPSec_MB library CMake Unix config
 # ##############################################################################
 include(GNUInstallDirs)
+include(CheckCCompilerFlag)
 
 set(LIB IPSec_MB) # 'lib' prefix assumed on Linux
 
@@ -69,9 +70,21 @@ set_source_files_properties(
 set_source_files_properties(
   ${SRC_FILES_AVX512_T1} ${SRC_FILES_AVX512_T2} ${SRC_FILES_AVX10_T1}
   PROPERTIES COMPILE_FLAGS "-march=skylake-avx512 -maes -mpclmul")
+
+# -march=x86-64-v2 requires GCC 11++ and older versions do not support it.
+# Suppress output from the "Failed" keyword in C compiler flag availability check.
+set(SAVED_CMAKE_REQUIRED_QUIET ${CMAKE_REQUIRED_QUIET})
+set(CMAKE_REQUIRED_QUIET TRUE)
+check_c_compiler_flag("-march=x86-64-v2" COMPILER_SUPPORTS_X86_64_V2)
+set(CMAKE_REQUIRED_QUIET ${SAVED_CMAKE_REQUIRED_QUIET})
+if(COMPILER_SUPPORTS_X86_64_V2)
+  set(SSE_MARCH_FLAG "-march=x86-64-v2")
+else()
+  set(SSE_MARCH_FLAG "-march=x86-64 -msse4.2")
+endif()
 set_source_files_properties(
   ${SRC_FILES_SSE_T1} ${SRC_FILES_SSE_T2} ${SRC_FILES_SSE_T3}
-  PROPERTIES COMPILE_FLAGS "-march=x86-64-v2 -maes -mpclmul")
+  PROPERTIES COMPILE_FLAGS "${SSE_MARCH_FLAG} -maes -mpclmul")
 set_source_files_properties(${SRC_FILES_X86_64} PROPERTIES COMPILE_FLAGS
                                                            "-msse4.2")
 
