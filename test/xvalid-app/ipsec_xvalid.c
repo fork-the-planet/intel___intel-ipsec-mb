@@ -55,6 +55,7 @@
 #endif
 
 #include <intel-ipsec-mb.h>
+#include "include/mb_mgr.h"
 
 /* maximum size of a test buffer */
 #define JOB_SIZE_TOP (16 * 1024)
@@ -1191,7 +1192,7 @@ print_match(const struct safe_check_ctx *ctx, const char *err_str)
 
         if (ctx->mgr_check) {
                 print_match_type(ctx->mgr_check, err_str);
-                print_match_memory(ctx->mgr_ptr, sizeof(IMB_MGR), ctx->mgr_offset, "IMB_MGR");
+                print_match_memory(ctx->mgr_ptr, imb_get_mb_mgr_size(), ctx->mgr_offset, "IMB_MGR");
                 return;
         }
 
@@ -1240,42 +1241,6 @@ compare_match(const struct safe_check_ctx *a, const struct safe_check_ctx *b)
                 return 1;
 
         return 0;
-}
-
-static size_t
-calculate_ooo_mgr_size(const void *ptr)
-{
-        const size_t max_size = MAX_OOO_MGR_SIZE - sizeof(uint64_t);
-        size_t i;
-
-        for (i = 0; i <= max_size; i++) {
-                const uint64_t end_of_ooo_pattern = 0xDEADCAFEDEADCAFEULL;
-                const uint8_t *ptr8 = (const uint8_t *) ptr;
-                const uint64_t *ptr64 = (const uint64_t *) &ptr8[i];
-
-                if (*ptr64 == end_of_ooo_pattern)
-                        return i + sizeof(uint64_t);
-        }
-
-        /* no marker found */
-        fprintf(stderr, "No road-block marker found for %p manager!\n", ptr);
-        return MAX_OOO_MGR_SIZE;
-}
-
-static size_t
-get_ooo_mgr_size(const void *ptr, const unsigned index)
-{
-        static size_t mgr_sz_tab[64];
-
-        if (index >= DIM(mgr_sz_tab)) {
-                fprintf(stderr, "get_ooo_mgr_size() internal table too small!\n");
-                exit(EXIT_FAILURE);
-        }
-
-        if (mgr_sz_tab[index] == 0)
-                mgr_sz_tab[index] = calculate_ooo_mgr_size(ptr);
-
-        return mgr_sz_tab[index];
 }
 
 static void
@@ -2101,80 +2066,29 @@ perform_safe_checks(IMB_MGR *mgr, const IMB_ARCH arch, struct safe_check_ctx *ct
         if (ctx->simd_check != 0)
                 return -1;
 
-        ctx->mgr_check = search_patterns_ex(mgr, sizeof(*mgr), &ctx->mgr_offset);
-        if (ctx->mgr_check != 0)
-                return -1;
+        /*
+         * Search IMB_MGR and OOO managers one after another.
+         * Start with index -1 to get information about IMB_MGR itself.
+         */
+        for (int i = -1;; i++) {
+                void *ooo_mgr_p = NULL;
+                size_t ooo_mgr_size = 0;
+                const char *ooo_mgr_name = NULL;
 
-        /* search OOO managers */
-        static const char *const ooo_names[] = {
-                "aes128_ooo",
-                "aes192_ooo",
-                "aes256_ooo",
-                "docsis128_sec_ooo",
-                "docsis128_crc32_sec_ooo",
-                "docsis256_sec_ooo",
-                "docsis256_crc32_sec_ooo",
-                "des_enc_ooo",
-                "des_dec_ooo",
-                "des3_enc_ooo",
-                "des3_dec_ooo",
-                "docsis_des_enc_ooo",
-                "docsis_des_dec_ooo",
-                "hmac_sha_1_ooo",
-                "hmac_sha_224_ooo",
-                "hmac_sha_256_ooo",
-                "hmac_sha_384_ooo",
-                "hmac_sha_512_ooo",
-                "hmac_md5_ooo",
-                "aes_xcbc_ooo",
-                "aes_ccm_ooo",
-                "aes_cmac_ooo",
-                "zuc_eea3_ooo",
-                "zuc_eia3_ooo",
-                "aes256_ccm_ooo",
-                "aes256_cmac_ooo",
-                "snow3g_uea2_ooo",
-                "snow3g_uia2_ooo",
-                "sha_1_ooo",
-                "sha_224_ooo",
-                "sha_256_ooo",
-                "sha_384_ooo",
-                "sha_512_ooo",
-                "sha3_224_ooo",
-                "sha3_256_ooo",
-                "sha3_384_ooo",
-                "sha3_512_ooo",
-                "aes_cfb_128_ooo",
-                "aes_cfb_192_ooo",
-                "aes_cfb_256_ooo",
-                "end_ooo" /* add new ooo manager above this line */
-        };
-        static size_t ooo_size[64] = { 0 };
-        static int ooo_size_set = 0;
-        void **ooo_ptr = NULL;
-
-        IMB_ASSERT(IMB_DIM(ooo_names) <= IMB_DIM(ooo_size));
-
-        if (ooo_size_set == 0) {
-                ooo_ptr = &mgr->aes128_ooo;
-                for (unsigned i = 0; ooo_ptr < &mgr->end_ooo; ooo_ptr++, i++) {
-                        void *ooo_mgr_p = *ooo_ptr;
-
-                        ooo_size[i] = get_ooo_mgr_size(ooo_mgr_p, i);
+                if (imb_get_ooo_mgr(mgr, i, &ooo_mgr_p, &ooo_mgr_size, &ooo_mgr_name) == EINVAL) {
+                        /* Invalid OOO manager index reached and i = number of OOO managers */
+                        break;
                 }
 
-                ooo_size_set = 1;
-        }
+                /* Skip NULL or zero-size OOO managers */
+                if (ooo_mgr_p == NULL || ooo_mgr_size == 0)
+                        continue;
 
-        ooo_ptr = &mgr->aes128_ooo;
-        for (unsigned i = 0; ooo_ptr < &mgr->end_ooo; ooo_ptr++, i++) {
-                void *ooo_mgr_p = *ooo_ptr;
-
-                ctx->ooo_check = search_patterns_ex(ooo_mgr_p, ooo_size[i], &ctx->ooo_offset);
+                ctx->ooo_check = search_patterns_ex(ooo_mgr_p, ooo_mgr_size, &ctx->ooo_offset);
                 if (ctx->ooo_check != 0) {
                         ctx->ooo_ptr = ooo_mgr_p;
-                        ctx->ooo_name = ooo_names[i];
-                        ctx->ooo_size = ooo_size[i];
+                        ctx->ooo_name = ooo_mgr_name;
+                        ctx->ooo_size = ooo_mgr_size;
                         return -1;
                 }
         }
@@ -2425,12 +2339,21 @@ print_fail_context(IMB_MGR *enc_mb_mgr, const IMB_ARCH enc_arch, IMB_MGR *dec_mb
                    const unsigned imix, const unsigned num_jobs, const unsigned idx,
                    const struct job_ctx *job_ctx_tab, const struct safe_check_ctx *safe_ctx)
 {
+        uint64_t features;
+
         printf("Failures in\n");
         print_algo_info(params);
+
         printf("\nEncrypting ");
-        print_tested_arch(enc_mb_mgr->features, enc_arch);
+        features = 0;
+        (void) imb_get_features(enc_mb_mgr, &features);
+        print_tested_arch(features, enc_arch);
+
         printf("Decrypting ");
-        print_tested_arch(dec_mb_mgr->features, dec_arch);
+        features = 0;
+        (void) imb_get_features(dec_mb_mgr, &features);
+        print_tested_arch(features, dec_arch);
+
         /*
          * Print buffer size info if the failure was caused by an actual job,
          * where "idx" indicates the index of the job failing
@@ -2935,8 +2858,16 @@ run_test(const IMB_ARCH enc_arch, const IMB_ARCH dec_arch, struct params_s *para
                 exit(EXIT_FAILURE);
         }
 
-        if (enc_mgr->features & IMB_FEATURE_SELF_TEST)
-                if (!(enc_mgr->features & IMB_FEATURE_SELF_TEST_PASS))
+        uint64_t features = 0;
+        int ret = imb_get_features(enc_mgr, &features);
+
+        if (ret != 0) {
+                fprintf(stderr, "MB MGR get features failure\n");
+                exit(EXIT_FAILURE);
+        }
+
+        if (features & IMB_FEATURE_SELF_TEST)
+                if (!(features & IMB_FEATURE_SELF_TEST_PASS))
                         fprintf(stderr, "SELF-TEST: FAIL\n");
 
         if (imb_get_errno(enc_mgr) != 0) {
@@ -2946,7 +2877,7 @@ run_test(const IMB_ARCH enc_arch, const IMB_ARCH dec_arch, struct params_s *para
         }
 
         printf("Encrypting ");
-        print_tested_arch(enc_mgr->features, enc_arch);
+        print_tested_arch(features, enc_arch);
 
         dec_mgr = alloc_mb_mgr(flags);
 
@@ -2973,8 +2904,16 @@ run_test(const IMB_ARCH enc_arch, const IMB_ARCH dec_arch, struct params_s *para
                 exit(EXIT_FAILURE);
         }
 
-        if (dec_mgr->features & IMB_FEATURE_SELF_TEST)
-                if (!(dec_mgr->features & IMB_FEATURE_SELF_TEST_PASS))
+        features = 0;
+        ret = imb_get_features(dec_mgr, &features);
+
+        if (ret != 0) {
+                fprintf(stderr, "MB MGR get features failure\n");
+                exit(EXIT_FAILURE);
+        }
+
+        if (features & IMB_FEATURE_SELF_TEST)
+                if (!(features & IMB_FEATURE_SELF_TEST_PASS))
                         fprintf(stderr, "SELF-TEST: FAIL\n");
 
         if (imb_get_errno(dec_mgr) != 0) {
@@ -2984,7 +2923,7 @@ run_test(const IMB_ARCH enc_arch, const IMB_ARCH dec_arch, struct params_s *para
         }
 
         printf("Decrypting ");
-        print_tested_arch(dec_mgr->features, dec_arch);
+        print_tested_arch(features, dec_arch);
 
         if (custom_test) {
                 params->key_size = custom_job_params.key_size;
@@ -3529,7 +3468,16 @@ main(int argc, char *argv[])
                 return EXIT_FAILURE;
         }
 
-        if (safe_check && ((p_mgr->features & IMB_FEATURE_SAFE_DATA) == 0)) {
+        uint64_t features = 0;
+        const int ret = imb_get_features(p_mgr, &features);
+
+        if (ret != 0) {
+                printf("Error retrieving MB_MGR features! %s\n", imb_get_strerror(ret));
+                free_mb_mgr(p_mgr);
+                return EXIT_FAILURE;
+        }
+
+        if (safe_check && ((features & IMB_FEATURE_SAFE_DATA) == 0)) {
                 fprintf(stderr, "Library needs to be compiled with SAFE_DATA "
                                 "if --safe-check is enabled\n");
                 free_mb_mgr(p_mgr);

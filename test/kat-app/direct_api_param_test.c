@@ -1970,7 +1970,7 @@ test_IMB_KASUMI_INIT_F8_KEY_SCHED(struct IMB_MGR *mgr)
                 return 1;
         }
 
-        struct fn_args {
+        const struct fn_args {
                 const void *key;
                 kasumi_key_sched_t *exp_key;
                 const IMB_ERR exp_err;
@@ -1980,7 +1980,7 @@ test_IMB_KASUMI_INIT_F8_KEY_SCHED(struct IMB_MGR *mgr)
         for (i = 0; i < DIM(fn_args); i++) {
                 const struct fn_args *ap = &fn_args[i];
 
-                IMB_KASUMI_INIT_F8_KEY_SCHED(mgr, ap->key, ap->exp_key);
+                (void) IMB_KASUMI_INIT_F8_KEY_SCHED(mgr, ap->key, ap->exp_key);
                 if (unexpected_err(mgr, ap->exp_err, "IMB_KASUMI_INIT_F8_KEY_SCHED"))
                         return 1;
         }
@@ -2005,7 +2005,7 @@ test_IMB_KASUMI_INIT_F9_KEY_SCHED(struct IMB_MGR *mgr)
                 return 1;
         }
 
-        struct fn_args {
+        const struct fn_args {
                 const void *key;
                 kasumi_key_sched_t *exp_key;
                 const IMB_ERR exp_err;
@@ -2015,7 +2015,7 @@ test_IMB_KASUMI_INIT_F9_KEY_SCHED(struct IMB_MGR *mgr)
         for (i = 0; i < DIM(fn_args); i++) {
                 const struct fn_args *ap = &fn_args[i];
 
-                IMB_KASUMI_INIT_F9_KEY_SCHED(mgr, ap->key, ap->exp_key);
+                (void) IMB_KASUMI_INIT_F9_KEY_SCHED(mgr, ap->key, ap->exp_key);
                 if (unexpected_err(mgr, ap->exp_err, "IMB_KASUMI_INIT_F9_KEY_SCHED"))
                         return 1;
         }
@@ -3095,7 +3095,7 @@ test_IMB_SNOW3G_INIT_KEY_SCHED(struct IMB_MGR *mgr)
                 return 1;
         }
 
-        struct fn_args {
+        const struct fn_args {
                 const void *key;
                 snow3g_key_schedule_t *exp_key;
                 const IMB_ERR exp_err;
@@ -3105,7 +3105,7 @@ test_IMB_SNOW3G_INIT_KEY_SCHED(struct IMB_MGR *mgr)
         for (i = 0; i < DIM(fn_args); i++) {
                 const struct fn_args *ap = &fn_args[i];
 
-                IMB_SNOW3G_INIT_KEY_SCHED(mgr, ap->key, ap->exp_key);
+                (void) IMB_SNOW3G_INIT_KEY_SCHED(mgr, ap->key, ap->exp_key);
                 if (unexpected_err(mgr, ap->exp_err, "IMB_SNOW3G_INIT_KEY_SCHED"))
                         return 1;
         }
@@ -4400,7 +4400,10 @@ direct_api_param_test(struct IMB_MGR *mb_mgr)
         handler = signal(SIGSEGV, seg_handler);
 
 #endif
-        if ((mb_mgr->features & IMB_FEATURE_SAFE_PARAM) == 0) {
+        uint64_t features = 0;
+
+        if (imb_get_features(mb_mgr, &features) != 0 ||
+            ((features & IMB_FEATURE_SAFE_PARAM) == 0)) {
                 printf("SAFE_PARAM feature disabled, "
                        "skipping remaining tests\n");
                 goto dir_api_exit;

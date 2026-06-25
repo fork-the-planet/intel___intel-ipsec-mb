@@ -369,9 +369,9 @@ cpu_feature_adjust(const uint64_t flags, uint64_t features)
         return features;
 }
 
-/* External function to retrieve feature flags */
+/* External function to retrieve CPU feature flags */
 uint64_t
-imb_get_feature_flags(void)
+imb_get_cpu_features(void)
 {
         return cpu_feature_detect();
 }

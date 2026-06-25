@@ -35,6 +35,19 @@
 IMB_DLL_LOCAL void
 init_mb_mgr_avx10_internal(IMB_MGR *state, const int reset_mgrs)
 {
+#ifdef SAFE_PARAM
+        if (state == NULL) {
+                imb_set_errno(NULL, IMB_ERR_NULL_MBMGR);
+                return;
+        }
+#endif
+
+        /* Check minimum CPU flags needed for AVX10 interface */
+        if ((state->features & IMB_CPUFLAGS_AVX10) != IMB_CPUFLAGS_AVX10) {
+                imb_set_errno(state, IMB_ERR_MISSING_CPUFLAGS_INIT_MGR);
+                return;
+        }
+
 #ifdef SMX_NI
         init_mb_mgr_avx10_t1_internal(state, reset_mgrs);
 #else

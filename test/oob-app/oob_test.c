@@ -2091,7 +2091,10 @@ main(int argc, char **argv)
                         continue;
                 }
 
-                print_tested_arch(mgr->features, atype);
+                uint64_t features = 0;
+
+                (void) imb_get_features(mgr, &features);
+                print_tested_arch(features, atype);
 
                 if (run_tests_for_arch(mgr, atype, &mem) != 0)
                         errors++;

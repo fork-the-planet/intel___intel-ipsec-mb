@@ -204,9 +204,25 @@ IMB_DLL_LOCAL void
 sha3_384_avx512(const uint8_t *input, const uint64_t inputByteLen, uint8_t *output);
 IMB_DLL_LOCAL void
 sha3_512_avx512(const uint8_t *input, const uint64_t inputByteLen, uint8_t *output);
+/**
+ * @brief Authenticate data buffer with SHAKE128 (XOF, variable-length output).
+ *
+ * @param [in]  input         Data buffer to be authenticated
+ * @param [in]  inputByteLen  Length of the data to be authenticated in bytes
+ * @param [out] output        Digest output
+ * @param [in]  outputByteLen Requested digest length in bytes
+ */
 IMB_DLL_LOCAL void
 shake128_avx512(const uint8_t *input, const uint64_t inputByteLen, uint8_t *output,
                 uint64_t outputByteLen);
+/**
+ * @brief Authenticate data buffer with SHAKE256 (XOF, variable-length output).
+ *
+ * @param [in]  input         Data buffer to be authenticated
+ * @param [in]  inputByteLen  Length of the data to be authenticated in bytes
+ * @param [out] output        Digest output
+ * @param [in]  outputByteLen Requested digest length in bytes
+ */
 IMB_DLL_LOCAL void
 shake256_avx512(const uint8_t *input, const uint64_t inputByteLen, uint8_t *output,
                 uint64_t outputByteLen);

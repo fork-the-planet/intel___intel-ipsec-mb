@@ -54,23 +54,17 @@ extern imb_aes_gmac_update_avx2
 ;void   aes_gcm_precomp_128_avx_gen4 /
 ;       aes_gcm_precomp_192_avx_gen4 /
 ;       aes_gcm_precomp_256_avx_gen4 /
-;       aes_gcm_precomp_128_avx512 /
-;       aes_gcm_precomp_192_avx512 /
-;       aes_gcm_precomp_256_avx512
 ;       (struct gcm_key_data *key_data)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(FN_NAME(precomp,_),function,)
-MKGLOBAL(FN_NAME_AVX512(precomp,_),function,)
 FN_NAME(precomp,_):
-FN_NAME_AVX512(precomp,_):
         endbranch64
         mov r10d, NROUNDS
         jmp aes_gcm_precomp_avx2
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;void   aes_gcm_init_128_avx_gen4 / aes_gcm_init_192_avx_gen4 / aes_gcm_init_256_avx_gen4 /
-;       aes_gcm_init_128_avx512 / aes_gcm_init_192_avx512 / aes_gcm_init_256_avx512
 ;       (const struct gcm_key_data *key_data,
 ;        struct gcm_context_data *context_data,
 ;        u8       *iv,
@@ -79,17 +73,13 @@ FN_NAME_AVX512(precomp,_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(FN_NAME(init,_),function,)
-MKGLOBAL(FN_NAME_AVX512(init,_),function,)
 FN_NAME(init,_):
-FN_NAME_AVX512(init,_):
         endbranch64
         jmp aes_gcm_init_avx2
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;void   aes_gcm_init_var_iv_128_avx_gen4 / aes_gcm_init_var_iv_192_avx_gen4 /
 ;       aes_gcm_init_var_iv_256_avx_gen4
-;       aes_gcm_init_var_iv_128_avx512 / aes_gcm_init_var_iv_192_avx512 /
-;       aes_gcm_init_var_iv_256_avx512
 ;       (const struct gcm_key_data *key_data,
 ;        struct gcm_context_data *context_data,
 ;        u8        *iv,
@@ -99,17 +89,13 @@ FN_NAME_AVX512(init,_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(FN_NAME(init_var_iv,_),function,)
-MKGLOBAL(FN_NAME_AVX512(init_var_iv,_),function,)
 FN_NAME(init_var_iv,_):
-FN_NAME_AVX512(init_var_iv,_):
         endbranch64
         jmp aes_gcm_init_var_iv_avx2
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;void   aes_gcm_enc_128_update_avx_gen4 / aes_gcm_enc_192_update_avx_gen4 /
 ;       aes_gcm_enc_128_update_avx_gen4 /
-;       aes_gcm_enc_128_update_avx512 / aes_gcm_enc_192_update_avx512 /
-;       aes_gcm_enc_256_update_avx512
 ;       (const struct gcm_key_data *key_data,
 ;        struct gcm_context_data *context_data,
 ;        u8       *out,
@@ -118,9 +104,7 @@ FN_NAME_AVX512(init_var_iv,_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(FN_NAME(enc,_update_),function,)
-MKGLOBAL(FN_NAME_AVX512(enc,_update_),function,)
 FN_NAME(enc,_update_):
-FN_NAME_AVX512(enc,_update_):
         endbranch64
         mov r10d, NROUNDS
         jmp aes_gcm_enc_update_avx2
@@ -128,8 +112,6 @@ FN_NAME_AVX512(enc,_update_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;void   aes_gcm_dec_128_update_avx_gen4 / aes_gcm_dec_192_update_avx_gen4 /
 ;       aes_gcm_dec_256_update_avx_gen4 /
-;       aes_gcm_dec_128_update_avx512 / aes_gcm_dec_192_update_avx512 /
-;       aes_gcm_dec_256_update_avx512
 ;       (const struct gcm_key_data *key_data,
 ;        struct gcm_context_data *context_data,
 ;        u8       *out,
@@ -138,9 +120,7 @@ FN_NAME_AVX512(enc,_update_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(FN_NAME(dec,_update_),function,)
-MKGLOBAL(FN_NAME_AVX512(dec,_update_),function,)
 FN_NAME(dec,_update_):
-FN_NAME_AVX512(dec,_update_):
         endbranch64
         mov r10d, NROUNDS
         jmp aes_gcm_dec_update_avx2
@@ -148,8 +128,6 @@ FN_NAME_AVX512(dec,_update_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;void   aes_gcm_enc_128_finalize_avx_gen4 / aes_gcm_enc_192_finalize_avx_gen4 /
 ;       aes_gcm_enc_256_finalize_avx_gen4 /
-;       aes_gcm_enc_128_finalize_avx512 / aes_gcm_enc_192_finalize_avx512 /
-;       aes_gcm_enc_256_finalize_avx512
 ;       (const struct gcm_key_data *key_data,
 ;        struct gcm_context_data *context_data,
 ;        u8       *auth_tag,
@@ -157,9 +135,7 @@ FN_NAME_AVX512(dec,_update_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(FN_NAME(enc,_finalize_),function,)
-MKGLOBAL(FN_NAME_AVX512(enc,_finalize_),function,)
 FN_NAME(enc,_finalize_):
-FN_NAME_AVX512(enc,_finalize_):
         endbranch64
         mov r10d, NROUNDS
         jmp aes_gcm_enc_finalize_avx2
@@ -167,8 +143,6 @@ FN_NAME_AVX512(enc,_finalize_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;void   aes_gcm_dec_128_finalize_avx_gen4 / aes_gcm_dec_192_finalize_avx_gen4
 ;       aes_gcm_dec_256_finalize_avx_gen4 /
-;       aes_gcm_dec_128_finalize_avx512 / aes_gcm_dec_192_finalize_avx512
-;       aes_gcm_dec_256_finalize_avx512
 ;       (const struct gcm_key_data *key_data,
 ;        struct gcm_context_data *context_data,
 ;        u8       *auth_tag,
@@ -176,16 +150,13 @@ FN_NAME_AVX512(enc,_finalize_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(FN_NAME(dec,_finalize_),function,)
-MKGLOBAL(FN_NAME_AVX512(dec,_finalize_),function,)
 FN_NAME(dec,_finalize_):
-FN_NAME_AVX512(dec,_finalize_):
         endbranch64
         mov r10d, NROUNDS
         jmp aes_gcm_dec_finalize_avx2
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;void   aes_gcm_enc_128_avx_gen4 / aes_gcm_enc_192_avx_gen4 / aes_gcm_enc_256_avx_gen4 /
-;       aes_gcm_enc_128_avx512 / aes_gcm_enc_192_avx512 / aes_gcm_enc_256_avx512
 ;       (const struct gcm_key_data *key_data,
 ;        struct gcm_context_data *context_data,
 ;        u8       *out,
@@ -199,16 +170,13 @@ FN_NAME_AVX512(dec,_finalize_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(FN_NAME(enc,_),function,)
-MKGLOBAL(FN_NAME_AVX512(enc,_),function,)
 FN_NAME(enc,_):
-FN_NAME_AVX512(enc,_):
         endbranch64
         mov r10d, NROUNDS
         jmp aes_gcm_enc_avx2
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;void   aes_gcm_dec_128_avx_gen4 / aes_gcm_dec_192_avx_gen4 / aes_gcm_dec_256_avx_gen4 /
-;       aes_gcm_dec_128_avx512 / aes_gcm_dec_192_avx512 / aes_gcm_dec_256_avx512
 ;       (const struct gcm_key_data *key_data,
 ;        struct gcm_context_data *context_data,
 ;        u8       *out,
@@ -222,9 +190,7 @@ FN_NAME_AVX512(enc,_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(FN_NAME(dec,_),function,)
-MKGLOBAL(FN_NAME_AVX512(dec,_),function,)
 FN_NAME(dec,_):
-FN_NAME_AVX512(dec,_):
         endbranch64
         mov r10d, NROUNDS
         jmp aes_gcm_dec_avx2
@@ -235,15 +201,11 @@ FN_NAME_AVX512(dec,_):
 ;
 ;IMB_JOB * aes_gcm_enc_var_iv_128_avx_gen4 / aes_gcm_enc_var_iv_192_avx_gen4 /
 ;       aes_gcm_enc_var_iv_256_avx_gen4 /
-;       aes_gcm_enc_var_iv_128_avx512 / aes_gcm_enc_var_iv_192_avx512 /
-;       aes_gcm_enc_var_iv_256_avx512
 ;       (IMB_MGR *state, IMB_JOB *job)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(FN_NAME(enc_var_iv,_),function,internal)
-MKGLOBAL(FN_NAME_AVX512(enc_var_iv,_),function,internal)
 FN_NAME(enc_var_iv,_):
-FN_NAME_AVX512(enc_var_iv,_):
         endbranch64
         mov r10d, NROUNDS
         jmp aes_gcm_enc_var_iv_avx2
@@ -254,15 +216,11 @@ FN_NAME_AVX512(enc_var_iv,_):
 ;
 ;IMB_JOB *aes_gcm_dec_var_iv_128_avx_gen4 / aes_gcm_dec_var_iv_192_avx_gen4 /
 ;       aes_gcm_dec_var_iv_256_avx_gen4 /
-;       aes_gcm_dec_var_iv_128_avx512 / aes_gcm_dec_var_iv_192_avx512 /
-;       aes_gcm_dec_var_iv_256_avx512
 ;       (IMB_MGR *state, IMB_JOB *job)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(FN_NAME(dec_var_iv,_),function,internal)
-MKGLOBAL(FN_NAME_AVX512(dec_var_iv,_),function,internal)
 FN_NAME(dec_var_iv,_):
-FN_NAME_AVX512(dec_var_iv,_):
         endbranch64
         mov r10d, NROUNDS
         jmp aes_gcm_dec_var_iv_avx2
@@ -270,8 +228,6 @@ FN_NAME_AVX512(dec_var_iv,_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;void   imb_aes_gmac_update_128_avx_gen4 / imb_aes_gmac_update_192_avx_gen4 /
 ;       imb_aes_gmac_update_256_avx_gen4
-;       imb_aes_gmac_update_128_avx512 / imb_aes_gmac_update_192_avx512 /
-;       imb_aes_gmac_update_256_avx512 (
 ;        const struct gcm_key_data *key_data,
 ;        struct gcm_context_data *context_data,
 ;        const   u8 *in,
@@ -279,9 +235,7 @@ FN_NAME_AVX512(dec_var_iv,_):
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
 MKGLOBAL(GMAC_FN_NAME(update),function,)
-MKGLOBAL(GMAC_FN_NAME_AVX512(update),function,)
 GMAC_FN_NAME(update):
-GMAC_FN_NAME_AVX512(update):
         endbranch64
         jmp imb_aes_gmac_update_avx2
 

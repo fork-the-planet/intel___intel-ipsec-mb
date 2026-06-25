@@ -2922,10 +2922,9 @@ exit:
 }
 
 static void
-run_gcm_sgl(aes_gcm_init_t init, aes_gcm_enc_dec_update_t update,
-            aes_gcm_enc_dec_finalize_t finalize, struct gcm_key_data *gdata_key,
-            struct gcm_context_data *gdata_ctx, uint8_t *p_buffer, uint32_t buf_size,
-            const void *aad, const uint32_t num_iter)
+run_gcm_sgl_enc(IMB_MGR *mb_mgr, int key_size, struct gcm_key_data *gdata_key,
+                struct gcm_context_data *gdata_ctx, uint8_t *p_buffer, uint32_t buf_size,
+                const void *aad, const uint32_t num_iter)
 {
         uint32_t i;
         static uint32_t index = 0;
@@ -2944,14 +2943,53 @@ run_gcm_sgl(aes_gcm_init_t init, aes_gcm_enc_dec_update_t update,
                         const uint32_t final_seg_sz = buf_size % segment_size;
                         uint32_t j;
 
-                        init(gdata_key, gdata_ctx, iv, aad, aad_size);
-                        for (j = 0; j < num_segs; j++)
-                                update(gdata_key, gdata_ctx, &pb[j * segment_size],
-                                       &pb[j * segment_size], segment_size);
-                        if (final_seg_sz != 0)
-                                update(gdata_key, gdata_ctx, &pb[j * segment_size],
-                                       &pb[j * segment_size], final_seg_sz);
-                        finalize(gdata_key, gdata_ctx, auth_tag, sizeof(auth_tag));
+                        switch (key_size) {
+                        case IMB_KEY_128_BYTES:
+                                imb_aes128_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                for (j = 0; j < num_segs; j++)
+                                        imb_aes128_gcm_enc_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], segment_size, mb_mgr);
+                                if (final_seg_sz != 0)
+                                        imb_aes128_gcm_enc_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], final_seg_sz, mb_mgr);
+                                imb_aes128_gcm_enc_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        case IMB_KEY_192_BYTES:
+                                imb_aes192_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                for (j = 0; j < num_segs; j++)
+                                        imb_aes192_gcm_enc_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], segment_size, mb_mgr);
+                                if (final_seg_sz != 0)
+                                        imb_aes192_gcm_enc_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], final_seg_sz, mb_mgr);
+                                imb_aes192_gcm_enc_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        case IMB_KEY_256_BYTES:
+                                imb_aes256_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                for (j = 0; j < num_segs; j++)
+                                        imb_aes256_gcm_enc_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], segment_size, mb_mgr);
+                                if (final_seg_sz != 0)
+                                        imb_aes256_gcm_enc_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], final_seg_sz, mb_mgr);
+                                imb_aes256_gcm_enc_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        default:
+                                fprintf(stderr, "Unsupported AES key size: %d\n", key_size);
+                                exit(EXIT_FAILURE);
+                        }
 
                         index = get_next_index(index);
                 }
@@ -2962,9 +3000,35 @@ run_gcm_sgl(aes_gcm_init_t init, aes_gcm_enc_dec_update_t update,
                         if (imix_list_count != 0)
                                 buf_size = get_next_size(i);
 
-                        init(gdata_key, gdata_ctx, iv, aad, aad_size);
-                        update(gdata_key, gdata_ctx, pb, pb, buf_size);
-                        finalize(gdata_key, gdata_ctx, auth_tag, sizeof(auth_tag));
+                        switch (key_size) {
+                        case IMB_KEY_128_BYTES:
+                                imb_aes128_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                imb_aes128_gcm_enc_update(gdata_key, gdata_ctx, pb, pb, buf_size,
+                                                          mb_mgr);
+                                imb_aes128_gcm_enc_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        case IMB_KEY_192_BYTES:
+                                imb_aes192_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                imb_aes192_gcm_enc_update(gdata_key, gdata_ctx, pb, pb, buf_size,
+                                                          mb_mgr);
+                                imb_aes192_gcm_enc_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        case IMB_KEY_256_BYTES:
+                                imb_aes256_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                imb_aes256_gcm_enc_update(gdata_key, gdata_ctx, pb, pb, buf_size,
+                                                          mb_mgr);
+                                imb_aes256_gcm_enc_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        default:
+                                fprintf(stderr, "Unsupported AES key size: %d\n", key_size);
+                                exit(EXIT_FAILURE);
+                        }
 
                         index = get_next_index(index);
                 }
@@ -2972,9 +3036,123 @@ run_gcm_sgl(aes_gcm_init_t init, aes_gcm_enc_dec_update_t update,
 }
 
 static void
-run_gcm(aes_gcm_enc_dec_t enc_dec, struct gcm_key_data *gdata_key,
-        struct gcm_context_data *gdata_ctx, uint8_t *p_buffer, uint32_t buf_size, const void *aad,
-        const uint32_t num_iter)
+run_gcm_sgl_dec(IMB_MGR *mb_mgr, int key_size, struct gcm_key_data *gdata_key,
+                struct gcm_context_data *gdata_ctx, uint8_t *p_buffer, uint32_t buf_size,
+                const void *aad, const uint32_t num_iter)
+{
+        uint32_t i;
+        static uint32_t index = 0;
+        uint8_t auth_tag[12];
+        DECLARE_ALIGNED(uint8_t iv[16], 16);
+
+        /* SGL */
+        if (segment_size != 0) {
+                for (i = 0; i < num_iter; i++) {
+                        uint8_t *pb = get_dst_buffer(index, p_buffer);
+
+                        if (imix_list_count != 0)
+                                buf_size = get_next_size(i);
+
+                        const uint32_t num_segs = buf_size / segment_size;
+                        const uint32_t final_seg_sz = buf_size % segment_size;
+                        uint32_t j;
+
+                        switch (key_size) {
+                        case IMB_KEY_128_BYTES:
+                                imb_aes128_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                for (j = 0; j < num_segs; j++)
+                                        imb_aes128_gcm_dec_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], segment_size, mb_mgr);
+                                if (final_seg_sz != 0)
+                                        imb_aes128_gcm_dec_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], final_seg_sz, mb_mgr);
+                                imb_aes128_gcm_dec_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        case IMB_KEY_192_BYTES:
+                                imb_aes192_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                for (j = 0; j < num_segs; j++)
+                                        imb_aes192_gcm_dec_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], segment_size, mb_mgr);
+                                if (final_seg_sz != 0)
+                                        imb_aes192_gcm_dec_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], final_seg_sz, mb_mgr);
+                                imb_aes192_gcm_dec_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        case IMB_KEY_256_BYTES:
+                                imb_aes256_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                for (j = 0; j < num_segs; j++)
+                                        imb_aes256_gcm_dec_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], segment_size, mb_mgr);
+                                if (final_seg_sz != 0)
+                                        imb_aes256_gcm_dec_update(
+                                                gdata_key, gdata_ctx, &pb[j * segment_size],
+                                                &pb[j * segment_size], final_seg_sz, mb_mgr);
+                                imb_aes256_gcm_dec_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        default:
+                                fprintf(stderr, "Unsupported AES key size: %d\n", key_size);
+                                exit(EXIT_FAILURE);
+                        }
+
+                        index = get_next_index(index);
+                }
+        } else {
+                for (i = 0; i < num_iter; i++) {
+                        uint8_t *pb = get_dst_buffer(index, p_buffer);
+
+                        if (imix_list_count != 0)
+                                buf_size = get_next_size(i);
+
+                        switch (key_size) {
+                        case IMB_KEY_128_BYTES:
+                                imb_aes128_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                imb_aes128_gcm_dec_update(gdata_key, gdata_ctx, pb, pb, buf_size,
+                                                          mb_mgr);
+                                imb_aes128_gcm_dec_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        case IMB_KEY_192_BYTES:
+                                imb_aes192_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                imb_aes192_gcm_dec_update(gdata_key, gdata_ctx, pb, pb, buf_size,
+                                                          mb_mgr);
+                                imb_aes192_gcm_dec_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        case IMB_KEY_256_BYTES:
+                                imb_aes256_gcm_init(gdata_key, gdata_ctx, iv, aad, aad_size,
+                                                    mb_mgr);
+                                imb_aes256_gcm_dec_update(gdata_key, gdata_ctx, pb, pb, buf_size,
+                                                          mb_mgr);
+                                imb_aes256_gcm_dec_finalize(gdata_key, gdata_ctx, auth_tag,
+                                                            sizeof(auth_tag), mb_mgr);
+                                break;
+                        default:
+                                fprintf(stderr, "Unsupported AES key size: %d\n", key_size);
+                                exit(EXIT_FAILURE);
+                        }
+
+                        index = get_next_index(index);
+                }
+        }
+}
+
+static void
+run_gcm_enc(IMB_MGR *mb_mgr, int key_size, struct gcm_key_data *gdata_key,
+            struct gcm_context_data *gdata_ctx, uint8_t *p_buffer, uint32_t buf_size,
+            const void *aad, const uint32_t num_iter)
 {
         uint32_t i;
         uint32_t index = 0;
@@ -2987,8 +3165,61 @@ run_gcm(aes_gcm_enc_dec_t enc_dec, struct gcm_key_data *gdata_key,
                 if (imix_list_count != 0)
                         buf_size = get_next_size(i);
 
-                enc_dec(gdata_key, gdata_ctx, pb, pb, buf_size, iv, aad, aad_size, auth_tag,
-                        sizeof(auth_tag));
+                switch (key_size) {
+                case IMB_KEY_128_BYTES:
+                        imb_aes128_gcm_enc(gdata_key, gdata_ctx, pb, pb, buf_size, iv, aad,
+                                           aad_size, auth_tag, sizeof(auth_tag), mb_mgr);
+                        break;
+                case IMB_KEY_192_BYTES:
+                        imb_aes192_gcm_enc(gdata_key, gdata_ctx, pb, pb, buf_size, iv, aad,
+                                           aad_size, auth_tag, sizeof(auth_tag), mb_mgr);
+                        break;
+                case IMB_KEY_256_BYTES:
+                        imb_aes256_gcm_enc(gdata_key, gdata_ctx, pb, pb, buf_size, iv, aad,
+                                           aad_size, auth_tag, sizeof(auth_tag), mb_mgr);
+                        break;
+                default:
+                        fprintf(stderr, "Unsupported AES key size: %d\n", key_size);
+                        exit(EXIT_FAILURE);
+                }
+
+                index = get_next_index(index);
+        }
+}
+
+static void
+run_gcm_dec(IMB_MGR *mb_mgr, int key_size, struct gcm_key_data *gdata_key,
+            struct gcm_context_data *gdata_ctx, uint8_t *p_buffer, uint32_t buf_size,
+            const void *aad, const uint32_t num_iter)
+{
+        uint32_t i;
+        uint32_t index = 0;
+        uint8_t auth_tag[12];
+        DECLARE_ALIGNED(uint8_t iv[16], 16);
+
+        for (i = 0; i < num_iter; i++) {
+                uint8_t *pb = get_dst_buffer(index, p_buffer);
+
+                if (imix_list_count != 0)
+                        buf_size = get_next_size(i);
+
+                switch (key_size) {
+                case IMB_KEY_128_BYTES:
+                        imb_aes128_gcm_dec(gdata_key, gdata_ctx, pb, pb, buf_size, iv, aad,
+                                           aad_size, auth_tag, sizeof(auth_tag), mb_mgr);
+                        break;
+                case IMB_KEY_192_BYTES:
+                        imb_aes192_gcm_dec(gdata_key, gdata_ctx, pb, pb, buf_size, iv, aad,
+                                           aad_size, auth_tag, sizeof(auth_tag), mb_mgr);
+                        break;
+                case IMB_KEY_256_BYTES:
+                        imb_aes256_gcm_dec(gdata_key, gdata_ctx, pb, pb, buf_size, iv, aad,
+                                           aad_size, auth_tag, sizeof(auth_tag), mb_mgr);
+                        break;
+                default:
+                        fprintf(stderr, "Unsupported AES key size: %d\n", key_size);
+                        exit(EXIT_FAILURE);
+                }
 
                 index = get_next_index(index);
         }
@@ -3047,31 +3278,12 @@ do_test_gcm(struct params_s *params, const uint32_t num_iter, IMB_MGR *mb_mgr, u
 #endif
                         time = __rdtscp(&aux);
 
-                if (params->key_size == IMB_KEY_128_BYTES) {
-                        if (use_gcm_sgl_api)
-                                run_gcm_sgl(mb_mgr->gcm128_init, mb_mgr->gcm128_enc_update,
-                                            mb_mgr->gcm128_enc_finalize, &gdata_key, &gdata_ctx,
-                                            p_buffer, params->job_size, aad, num_iter);
-                        else
-                                run_gcm(mb_mgr->gcm128_enc, &gdata_key, &gdata_ctx, p_buffer,
+                if (use_gcm_sgl_api)
+                        run_gcm_sgl_enc(mb_mgr, params->key_size, &gdata_key, &gdata_ctx, p_buffer,
                                         params->job_size, aad, num_iter);
-                } else if (params->key_size == IMB_KEY_192_BYTES) {
-                        if (use_gcm_sgl_api)
-                                run_gcm_sgl(mb_mgr->gcm192_init, mb_mgr->gcm192_enc_update,
-                                            mb_mgr->gcm192_enc_finalize, &gdata_key, &gdata_ctx,
-                                            p_buffer, params->job_size, aad, num_iter);
-                        else
-                                run_gcm(mb_mgr->gcm192_enc, &gdata_key, &gdata_ctx, p_buffer,
-                                        params->job_size, aad, num_iter);
-                } else { /* 256 */
-                        if (use_gcm_sgl_api)
-                                run_gcm_sgl(mb_mgr->gcm256_init, mb_mgr->gcm256_enc_update,
-                                            mb_mgr->gcm256_enc_finalize, &gdata_key, &gdata_ctx,
-                                            p_buffer, params->job_size, aad, num_iter);
-                        else
-                                run_gcm(mb_mgr->gcm256_enc, &gdata_key, &gdata_ctx, p_buffer,
-                                        params->job_size, aad, num_iter);
-                }
+                else
+                        run_gcm_enc(mb_mgr, params->key_size, &gdata_key, &gdata_ctx, p_buffer,
+                                    params->job_size, aad, num_iter);
 #ifndef _WIN32
                 if (use_unhalted_cycles)
                         time = (read_cycles(params->core) - rd_cycles_cost) - time;
@@ -3086,31 +3298,12 @@ do_test_gcm(struct params_s *params, const uint32_t num_iter, IMB_MGR *mb_mgr, u
 #endif
                         time = __rdtscp(&aux);
 
-                if (params->key_size == IMB_KEY_128_BYTES) {
-                        if (use_gcm_sgl_api)
-                                run_gcm_sgl(mb_mgr->gcm128_init, mb_mgr->gcm128_dec_update,
-                                            mb_mgr->gcm128_dec_finalize, &gdata_key, &gdata_ctx,
-                                            p_buffer, params->job_size, aad, num_iter);
-                        else
-                                run_gcm(mb_mgr->gcm128_dec, &gdata_key, &gdata_ctx, p_buffer,
+                if (use_gcm_sgl_api)
+                        run_gcm_sgl_dec(mb_mgr, params->key_size, &gdata_key, &gdata_ctx, p_buffer,
                                         params->job_size, aad, num_iter);
-                } else if (params->key_size == IMB_KEY_192_BYTES) {
-                        if (use_gcm_sgl_api)
-                                run_gcm_sgl(mb_mgr->gcm192_init, mb_mgr->gcm192_dec_update,
-                                            mb_mgr->gcm192_dec_finalize, &gdata_key, &gdata_ctx,
-                                            p_buffer, params->job_size, aad, num_iter);
-                        else
-                                run_gcm(mb_mgr->gcm192_dec, &gdata_key, &gdata_ctx, p_buffer,
-                                        params->job_size, aad, num_iter);
-                } else { /* 256 */
-                        if (use_gcm_sgl_api)
-                                run_gcm_sgl(mb_mgr->gcm256_init, mb_mgr->gcm256_dec_update,
-                                            mb_mgr->gcm256_dec_finalize, &gdata_key, &gdata_ctx,
-                                            p_buffer, params->job_size, aad, num_iter);
-                        else
-                                run_gcm(mb_mgr->gcm256_dec, &gdata_key, &gdata_ctx, p_buffer,
-                                        params->job_size, aad, num_iter);
-                }
+                else
+                        run_gcm_dec(mb_mgr, params->key_size, &gdata_key, &gdata_ctx, p_buffer,
+                                    params->job_size, aad, num_iter);
 #ifndef _WIN32
                 if (use_unhalted_cycles)
                         time = (read_cycles(params->core) - rd_cycles_cost) - time;
@@ -3919,41 +4112,32 @@ get_next_num_arg(const char *const *argv, const int index, const int argc, void 
 static int
 detect_arch(unsigned int arch_support[NUM_ARCHS])
 {
-        const uint64_t detect_sse = IMB_FEATURE_SSE4_2 | IMB_FEATURE_CMOV | IMB_FEATURE_AESNI;
-        const uint64_t detect_avx = IMB_FEATURE_AVX | IMB_FEATURE_CMOV | IMB_FEATURE_AESNI;
-        const uint64_t detect_avx2 = IMB_FEATURE_AVX2 | detect_avx;
-        const uint64_t detect_avx512 = IMB_FEATURE_AVX512_SKX | detect_avx2;
-        const uint64_t detect_avx10 = IMB_FEATURE_AVX10_2 | detect_avx512;
-        IMB_MGR *p_mgr = NULL;
-        enum arch_type_e arch_id;
+        const uint64_t detect_sse = IMB_CPUFLAGS_SSE;
+        const uint64_t detect_avx2 = IMB_CPUFLAGS_AVX2;
+        const uint64_t detect_avx512 = IMB_CPUFLAGS_AVX512;
+        const uint64_t detect_avx10 = IMB_CPUFLAGS_AVX10;
 
         if (arch_support == NULL) {
                 fprintf(stderr, "Array not passed correctly\n");
                 return -1;
         }
 
-        for (arch_id = ARCH_SSE; arch_id < NUM_ARCHS; arch_id++)
+        for (enum arch_type_e arch_id = ARCH_SSE; arch_id < NUM_ARCHS; arch_id++)
                 arch_support[arch_id] = 1;
 
-        p_mgr = alloc_mb_mgr(0);
-        if (p_mgr == NULL) {
-                fprintf(stderr, "Architecture detect error!\n");
-                return -1;
-        }
+        const uint64_t features = imb_get_cpu_features();
 
-        if ((p_mgr->features & detect_avx10) != detect_avx10)
+        if ((features & detect_avx10) != detect_avx10)
                 arch_support[ARCH_AVX10] = 0;
 
-        if ((p_mgr->features & detect_avx512) != detect_avx512)
+        if ((features & detect_avx512) != detect_avx512)
                 arch_support[ARCH_AVX512] = 0;
 
-        if ((p_mgr->features & detect_avx2) != detect_avx2)
+        if ((features & detect_avx2) != detect_avx2)
                 arch_support[ARCH_AVX2] = 0;
 
-        if ((p_mgr->features & detect_sse) != detect_sse)
+        if ((features & detect_sse) != detect_sse)
                 arch_support[ARCH_SSE] = 0;
-
-        free_mb_mgr(p_mgr);
 
         return 0;
 }
@@ -4143,28 +4327,17 @@ end_range:
 static int
 detect_best_arch(uint8_t arch_support[NUM_ARCHS])
 {
-        const uint64_t detect_sse = IMB_FEATURE_SSE4_2 | IMB_FEATURE_CMOV | IMB_FEATURE_AESNI;
-        const uint64_t detect_avx = IMB_FEATURE_AVX | IMB_FEATURE_CMOV | IMB_FEATURE_AESNI;
-        const uint64_t detect_avx2 = IMB_FEATURE_AVX2 | detect_avx;
-        const uint64_t detect_avx512 = IMB_FEATURE_AVX512_SKX | detect_avx2;
-        const uint64_t detect_avx10 = IMB_FEATURE_AVX10_2 | detect_avx512;
-        IMB_MGR *p_mgr = NULL;
-        uint64_t detected_features = 0;
+        const uint64_t detect_sse = IMB_CPUFLAGS_SSE;
+        const uint64_t detect_avx2 = IMB_CPUFLAGS_AVX2;
+        const uint64_t detect_avx512 = IMB_CPUFLAGS_AVX512;
+        const uint64_t detect_avx10 = IMB_CPUFLAGS_AVX10;
 
         if (arch_support == NULL) {
                 fprintf(stderr, "Arch detection: wrong argument!\n");
                 return -1;
         }
 
-        p_mgr = alloc_mb_mgr(0);
-        if (p_mgr == NULL) {
-                fprintf(stderr, "Arch detection: initialization error!\n");
-                return -1;
-        }
-
-        detected_features = p_mgr->features;
-
-        free_mb_mgr(p_mgr);
+        const uint64_t detected_features = imb_get_cpu_features();
 
         memset(arch_support, 0, NUM_ARCHS * sizeof(arch_support[0]));
 

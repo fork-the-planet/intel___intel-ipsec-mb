@@ -26,6 +26,7 @@
 *******************************************************************************/
 
 #include "intel-ipsec-mb.h"
+#include "include/mb_mgr.h"
 #include "ipsec_ooo_mgr.h"
 
 int

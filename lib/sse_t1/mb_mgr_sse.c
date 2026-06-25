@@ -47,11 +47,6 @@ init_mb_mgr_sse_internal(IMB_MGR *state, const int reset_mgrs)
                 return;
         }
 
-        state->features = cpu_feature_adjust(state->flags, cpu_feature_detect());
-
-        /* reset error status */
-        imb_set_errno(state, 0);
-
         if ((state->features & IMB_CPUFLAGS_SSE_T3) == IMB_CPUFLAGS_SSE_T3)
                 init_mb_mgr_sse_t3_internal(state, reset_mgrs);
         else if ((state->features & IMB_CPUFLAGS_SSE_T2) == IMB_CPUFLAGS_SSE_T2)

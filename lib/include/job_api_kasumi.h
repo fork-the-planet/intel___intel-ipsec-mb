@@ -26,6 +26,7 @@
 *******************************************************************************/
 
 #include "intel-ipsec-mb.h"
+#include "mb_mgr.h"
 
 #ifndef JOB_API_KASUMI_H
 #define JOB_API_KASUMI_H

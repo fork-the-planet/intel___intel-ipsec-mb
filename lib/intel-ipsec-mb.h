@@ -1,5 +1,5 @@
 /*******************************************************************************
-  Copyright (c) 2012-2024, Intel Corporation
+  Copyright (c) 2012-2026, Intel Corporation
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions are met:
@@ -120,7 +120,7 @@ typedef enum {
 } IMB_ARCH;
 
 /**
- * Algorithm constants
+ * Algorithm constants and structures
  */
 #define IMB_DES_KEY_SCHED_SIZE (16 * 8) /**< 16 rounds x 8 bytes */
 #define IMB_DES_BLOCK_SIZE     8
@@ -172,9 +172,35 @@ typedef enum {
 #define IMB_SM3_DIGEST_SIZE 32
 #define IMB_SM3_BLOCK_SIZE  64
 
+/* 32 precomputed (4-byte) rounds for SM4 key schedule (128 bytes in total) */
+#define IMB_SM4_KEY_SCHEDULE_ROUNDS 32
+
 #define IMB_CHACHA20_POLY1305_KEY_SIZE 32
 #define IMB_CHACHA20_POLY1305_IV_SIZE  12
 #define IMB_POLY1305_BLOCK_SIZE        16
+
+/* Per RFC 7539, max cipher size is (2^32 - 1) x 64 */
+#define IMB_CHACHA20_POLY1305_MAX_LEN UINT64_C((1ULL << 38) - 64)
+
+/**
+ * @brief holds Chacha20-Poly1305 operation context
+ */
+struct chacha20_poly1305_context_data {
+        uint64_t hash[3];    /**< Intermediate computation of hash value */
+        uint64_t aad_len;    /**< Total AAD length */
+        uint64_t hash_len;   /**< Total length to digest (excluding AAD) */
+        uint8_t last_ks[64]; /**< Last 64 bytes of KS */
+        uint8_t poly_key[IMB_CHACHA20_POLY1305_KEY_SIZE]; /**< Poly key */
+        uint8_t poly_scratch[IMB_POLY1305_BLOCK_SIZE]; /**< Scratchpad to compute Poly on 16 bytes
+                                                        */
+        uint64_t last_block_count;                     /**< Last block count used in last segment */
+        uint64_t remain_ks_bytes;                  /**< Amount of bytes still to use of key stream
+                                                     (up to 63 bytes) */
+        uint64_t remain_ct_bytes;                  /**< Amount of cipher text bytes still to use
+                                                     of previous segment to authenticate
+                                                     (up to 16 bytes) */
+        uint8_t IV[IMB_CHACHA20_POLY1305_IV_SIZE]; /**< IV (12 bytes) */
+};
 
 /**
  * Minimum Ethernet frame size to calculate CRC32
@@ -182,6 +208,95 @@ typedef enum {
  */
 #define IMB_DOCSIS_CRC32_MIN_ETH_PDU_SIZE 14
 #define IMB_DOCSIS_CRC32_TAG_SIZE         4
+
+/* 64 precomputed words for Kasumi key schedule */
+#define KASUMI_KEY_SCHEDULE_SIZE 64
+
+/**
+ * Kasumi internal key scheduling
+ */
+typedef struct kasumi_key_sched_s {
+        /**< Kasumi internal scheduling */
+        uint16_t sk16[KASUMI_KEY_SCHEDULE_SIZE];  /**< key schedule */
+        uint16_t msk16[KASUMI_KEY_SCHEDULE_SIZE]; /**< modified key schedule */
+} kasumi_key_sched_t;
+
+/**
+ * IV data is limited to 16 bytes as follows:
+ * 12 bytes is provided by an application -
+ *    pre-counter block j0: 4 byte salt (from Security Association)
+ *    concatenated with 8 byte Initialization Vector (from IPSec ESP
+ *    Payload).
+ * 4 byte value 0x00000001 is padded automatically by the library -
+ *    there is no need to add these 4 bytes on application side anymore.
+ */
+#define IMB_GCM_IV_DATA_LEN (12)
+
+#define IMB_GCM_128_KEY_LEN (16)
+#define IMB_GCM_192_KEY_LEN (24)
+#define IMB_GCM_256_KEY_LEN (32)
+
+/* NIST SP 800-38-D, section 5.2.1.1: len(P) < 2^39 - 256 [bits] */
+#define IMB_GCM_MAX_LEN UINT64_C((((1ULL << 39) - 256) / 8) - 1)
+
+/**
+ * @brief holds GCM operation context
+ *
+ * init, update and finalize context data
+ */
+struct gcm_context_data {
+        /**
+         * The context includes:
+         * - AAD hash (16 bytes)
+         * - AAD length (8 bytes)
+         * - message length (8 bytes)
+         * - partial block encrypted (16 bytes)
+         * - original IV (16 bytes)
+         * - current counter block (16 bytes)
+         * - partial blocklength (8 bytes)
+         */
+        uint64_t ctx[11];
+};
+
+/**
+ * @brief holds intermediate key data needed to improve performance
+ *
+ * gcm_key_data hold internal key information used by gcm128, gcm192 and gcm256.
+ */
+#ifdef _WIN32
+__declspec(align(64))
+#endif /* WIN32 */
+struct gcm_key_data {
+        /**
+         * AES key schedule takes at most 15 expanded keys (AES256).
+         * Each expanded key is 16 bytes long.
+         */
+        uint8_t expanded_keys[16 * 15];
+
+        /**
+         * Hash key size is 16 bytes.
+         * Hash key structure sizes for various architectures look as follows:
+         * - SSE: 8 pairs of hash keys -> 8 * 2 * 16 bytes
+         * - AVX2: 8 pairs of hash keys -> 8 * 2 * 16 bytes
+         * - AVX2 Type2: 16 pairs of hash keys -> 16 * 2 * 16 bytes
+         * - AVX512 Type2: 32 pairs of hash keys -> 32 * 2 * 16 bytes
+         */
+        uint8_t ghash_keys[32 * 2 * 16];
+}
+#if defined(__linux__) || defined(__FreeBSD__)
+__attribute__((aligned(64)));
+#else
+;
+#endif
+
+#define IMB_CCM_AAD_MAX_SIZE (46) /* Maximum CCM AAD size */
+
+/**
+ * Snow3G key scheduling structure
+ */
+typedef struct snow3g_key_schedule_s {
+        uint32_t k[4];
+} snow3g_key_schedule_t;
 
 /**
  * Job structure definitions
@@ -418,21 +533,20 @@ struct IMB_SGL_IOV {
  * In case of an in-place operation, dst pointer needs to point
  * at src + cipher_start_src_offset_in_bytes/bits.
  */
-
 typedef struct IMB_JOB {
         const void *enc_keys;      /**< Encryption key pointer */
         const void *dec_keys;      /**< Decryption key pointer */
         uint64_t key_len_in_bytes; /**< Key length in bytes */
         union {
                 const uint8_t *src; /**< Input buffer.
-                                May be ciphertext or plaintext.
+                                May be cipher text or plain text.
                                 In-place ciphering allowed. */
                 const struct IMB_SGL_IOV *sgl_io_segs;
                 /**< Pointer to array of input/output SGL segments */
         };
         union {
                 uint8_t *dst; /**< Output buffer.
-                               May be ciphertext or plaintext.
+                               May be cipher text or plain text.
                                In-place ciphering allowed, i.e. dst = src. */
                 uint64_t num_sgl_io_segs;
                 /**< Number of input/output SGL segments */
@@ -579,307 +693,17 @@ typedef struct IMB_JOB {
         uint32_t session_id;  /**< see imb_set_session() */
 } IMB_JOB;
 
-/* KASUMI */
+/* Multi buffer manager data type definitions */
+struct IMB_MGR;
+typedef struct IMB_MGR IMB_MGR;
 
-/* 64 precomputed words for key schedule */
-#define KASUMI_KEY_SCHEDULE_SIZE 64
-
-/**
- * Structure to maintain internal key scheduling
- */
-typedef struct kasumi_key_sched_s {
-        /**< Kasumi internal scheduling */
-        uint16_t sk16[KASUMI_KEY_SCHEDULE_SIZE];  /**< key schedule */
-        uint16_t msk16[KASUMI_KEY_SCHEDULE_SIZE]; /**< modified key schedule */
-} kasumi_key_sched_t;
-
-/* GCM data structures */
-#define IMB_GCM_BLOCK_LEN 16
-
-/**
- * @brief holds GCM operation context
- *
- * init, update and finalize context data
- */
-struct gcm_context_data {
-        uint8_t aad_hash[IMB_GCM_BLOCK_LEN];
-        uint64_t aad_length;
-        uint64_t in_length;
-        uint8_t partial_block_enc_key[IMB_GCM_BLOCK_LEN];
-        uint8_t orig_IV[IMB_GCM_BLOCK_LEN];
-        uint8_t current_counter[IMB_GCM_BLOCK_LEN];
-        uint64_t partial_block_length;
-};
-#undef IMB_GCM_BLOCK_LEN
-
-/**
- * @brief holds Chacha20-Poly1305 operation context
- */
-struct chacha20_poly1305_context_data {
-        uint64_t hash[3];    /**< Intermediate computation of hash value */
-        uint64_t aad_len;    /**< Total AAD length */
-        uint64_t hash_len;   /**< Total length to digest (excluding AAD) */
-        uint8_t last_ks[64]; /**< Last 64 bytes of KS */
-        uint8_t poly_key[IMB_CHACHA20_POLY1305_KEY_SIZE]; /**< Poly key */
-        uint8_t poly_scratch[IMB_POLY1305_BLOCK_SIZE]; /**< Scratchpad to compute Poly on 16 bytes
-                                                        */
-        uint64_t last_block_count;                     /**< Last block count used in last segment */
-        uint64_t remain_ks_bytes;                  /**< Amount of bytes still to use of keystream
-                                                     (up to 63 bytes) */
-        uint64_t remain_ct_bytes;                  /**< Amount of ciphertext bytes still to use
-                                                     of previous segment to authenticate
-                                                     (up to 16 bytes) */
-        uint8_t IV[IMB_CHACHA20_POLY1305_IV_SIZE]; /**< IV (12 bytes) */
-};
-
-/* 32 precomputed (4-byte) rounds for SM4 key schedule (128 bytes in total) */
-#define IMB_SM4_KEY_SCHEDULE_ROUNDS 32
+#define IMB_MAX_BURST_SIZE 128
+#define IMB_MAX_JOBS       (IMB_MAX_BURST_SIZE * 2)
 
 /**
  * Maximum Authenticated Tag Length in bytes.
  */
 #define IMB_MAX_TAG_LEN (64)
-
-/**
- * IV data is limited to 16 bytes as follows:
- * 12 bytes is provided by an application -
- *    pre-counter block j0: 4 byte salt (from Security Association)
- *    concatenated with 8 byte Initialization Vector (from IPSec ESP
- *    Payload).
- * 4 byte value 0x00000001 is padded automatically by the library -
- *    there is no need to add these 4 bytes on application side anymore.
- */
-#define IMB_GCM_IV_DATA_LEN (12)
-
-#define IMB_GCM_128_KEY_LEN (16)
-#define IMB_GCM_192_KEY_LEN (24)
-#define IMB_GCM_256_KEY_LEN (32)
-
-#define IMB_GCM_ENC_KEY_LEN 16
-#define IMB_GCM_KEY_SETS    (15) /**< exp key + 14 exp round keys*/
-
-/* NIST SP 800-38-D, section 5.2.1.1: len(P) < 2^39 - 256 [bits] */
-#define IMB_GCM_MAX_LEN UINT64_C((((1ULL << 39) - 256) / 8) - 1)
-
-/* Per RFC 7539, max cipher size is (2^32 - 1) x 64 */
-#define IMB_CHACHA20_POLY1305_MAX_LEN UINT64_C((1ULL << 38) - 64)
-
-#define IMB_CCM_AAD_MAX_SIZE (46) /* Maximum CCM AAD size */
-/**
- * @brief holds intermediate key data needed to improve performance
- *
- * gcm_key_data hold internal key information used by gcm128, gcm192 and gcm256.
- */
-#ifdef _WIN32
-__declspec(align(64))
-#endif /* WIN32 */
-struct gcm_key_data {
-        uint8_t expanded_keys[IMB_GCM_ENC_KEY_LEN * IMB_GCM_KEY_SETS];
-        union {
-                /**< Storage for precomputed hash keys */
-                struct {
-                        /**
-                         * This is needed for schoolbook multiply purposes.
-                         * (HashKey<<1 mod poly), (HashKey^2<<1 mod poly), ...,
-                         * (Hashkey^48<<1 mod poly)
-                         */
-                        uint8_t shifted_hkey[IMB_GCM_ENC_KEY_LEN * 8];
-                        /**
-                         * This is needed for Karatsuba multiply purposes.
-                         * Storage for XOR of High 64 bits and low 64 bits
-                         * of HashKey mod poly.
-                         *
-                         * (HashKey<<1 mod poly), (HashKey^2<<1 mod poly), ...,
-                         * (Hashkey^128<<1 mod poly)
-                         */
-                        uint8_t shifted_hkey_k[IMB_GCM_ENC_KEY_LEN * 8];
-                } sse_avx;
-                struct {
-                        /**
-                         * This is needed for schoolbook multiply purposes.
-                         * (HashKey<<1 mod poly), (HashKey<<1 mod poly) x POLY,
-                         * (HashKey^2<<1 mod poly), (HashKey^2<<1 mod poly) x POLY,
-                         * ...,
-                         * (Hashkey^8<<1 mod poly), (Hashkey^8<<1 mod poly) x POLY
-                         */
-                        uint8_t shifted_hkey[IMB_GCM_ENC_KEY_LEN * 8 * 2];
-                } avx2_avx512;
-                struct {
-                        /**
-                         * Start with:
-                         * (HashKey<<1 mod poly), (HashKey^2<<1 mod poly), ...,
-                         * (Hashkey^32<<1 mod poly)
-                         *
-                         * Followed by:
-                         * (HashKey<<1 mod poly) x POLY,
-                         * (HashKey^2<<1 mod poly) x POLY, ...,
-                         * (Hashkey^32<<1 mod poly) x POLY
-                         */
-                        uint8_t shifted_hkey[IMB_GCM_ENC_KEY_LEN * 32 * 2];
-                } vaes_avx512;
-                struct {
-                        /**
-                         * Start with:
-                         * (HashKey<<1 mod poly), (HashKey^2<<1 mod poly), ...,
-                         * (Hashkey^16<<1 mod poly)
-                         *
-                         * Followed by:
-                         * (HashKey<<1 mod poly) x POLY,
-                         * (HashKey^2<<1 mod poly) x POLY, ...,
-                         * (Hashkey^16<<1 mod poly) x POLY
-                         */
-                        uint8_t shifted_hkey[IMB_GCM_ENC_KEY_LEN * 16 * 2];
-                } vaes_avx2;
-        } ghash_keys;
-}
-#if defined(__linux__) || defined(__FreeBSD__)
-__attribute__((aligned(64)));
-#else
-;
-#endif
-
-#undef IMB_GCM_ENC_KEY_LEN
-#undef IMB_GCM_KEY_SETS
-
-/* API data type definitions */
-struct IMB_MGR;
-
-typedef void (*init_mb_mgr_t)(struct IMB_MGR *);
-typedef IMB_JOB *(*get_next_job_t)(struct IMB_MGR *);
-typedef IMB_JOB *(*submit_job_t)(struct IMB_MGR *);
-typedef IMB_JOB *(*get_completed_job_t)(struct IMB_MGR *);
-typedef IMB_JOB *(*flush_job_t)(struct IMB_MGR *);
-typedef uint32_t (*queue_size_t)(struct IMB_MGR *);
-typedef uint32_t (*burst_fn_t)(struct IMB_MGR *, const uint32_t, struct IMB_JOB **);
-typedef uint32_t (*submit_cipher_burst_t)(struct IMB_MGR *, struct IMB_JOB *, const uint32_t,
-                                          const IMB_CIPHER_MODE cipher,
-                                          const IMB_CIPHER_DIRECTION dir,
-                                          const IMB_KEY_SIZE_BYTES key_size);
-typedef uint32_t (*submit_hash_burst_t)(struct IMB_MGR *, struct IMB_JOB *, const uint32_t,
-                                        const IMB_HASH_ALG hash);
-typedef void (*keyexp_t)(const void *, void *, void *);
-typedef void (*cmac_subkey_gen_t)(const void *, void *, void *);
-typedef void (*hash_one_block_t)(const void *, void *);
-typedef void (*hash_fn_t)(const void *, const uint64_t, void *);
-typedef void (*sha3_fn_t)(const uint8_t *, const uint64_t, uint8_t *);
-typedef void (*shake_fn_t)(const uint8_t *, const uint64_t, uint8_t *, const uint64_t);
-typedef void (*xcbc_keyexp_t)(const void *, void *, void *, void *);
-typedef int (*des_keysched_t)(uint64_t *, const void *);
-typedef void (*aes_cfb_t)(void *, const void *, const void *, const void *, uint64_t);
-typedef void (*aes_gcm_enc_dec_t)(const struct gcm_key_data *, struct gcm_context_data *, uint8_t *,
-                                  uint8_t const *, uint64_t, const uint8_t *, uint8_t const *,
-                                  uint64_t, uint8_t *, uint64_t);
-typedef void (*aes_gcm_enc_dec_iv_t)(const struct gcm_key_data *, struct gcm_context_data *,
-                                     uint8_t *, uint8_t const *, const uint64_t, const uint8_t *,
-                                     uint8_t const *, const uint64_t, uint8_t *, const uint64_t,
-                                     const uint64_t);
-typedef void (*aes_gcm_init_t)(const struct gcm_key_data *, struct gcm_context_data *,
-                               const uint8_t *, uint8_t const *, uint64_t);
-typedef void (*aes_gcm_init_var_iv_t)(const struct gcm_key_data *, struct gcm_context_data *,
-                                      const uint8_t *, const uint64_t, const uint8_t *,
-                                      const uint64_t);
-typedef void (*aes_gcm_enc_dec_update_t)(const struct gcm_key_data *, struct gcm_context_data *,
-                                         uint8_t *, const uint8_t *, uint64_t);
-typedef void (*aes_gcm_enc_dec_finalize_t)(const struct gcm_key_data *, struct gcm_context_data *,
-                                           uint8_t *, uint64_t);
-typedef void (*aes_gcm_precomp_t)(struct gcm_key_data *);
-typedef void (*aes_gcm_pre_t)(const void *, struct gcm_key_data *);
-
-typedef void (*aes_gmac_init_t)(const struct gcm_key_data *, struct gcm_context_data *,
-                                const uint8_t *, const uint64_t);
-typedef void (*aes_gmac_update_t)(const struct gcm_key_data *, struct gcm_context_data *,
-                                  const uint8_t *, const uint64_t);
-typedef void (*aes_gmac_finalize_t)(const struct gcm_key_data *, struct gcm_context_data *,
-                                    uint8_t *, const uint64_t);
-
-typedef void (*chacha_poly_init_t)(const void *, struct chacha20_poly1305_context_data *,
-                                   const void *, const void *, const uint64_t);
-typedef void (*chacha_poly_enc_dec_update_t)(const void *, struct chacha20_poly1305_context_data *,
-                                             void *, const void *, const uint64_t);
-typedef void (*chacha_poly_finalize_t)(struct chacha20_poly1305_context_data *, void *,
-                                       const uint64_t);
-typedef void (*ghash_t)(const struct gcm_key_data *, const void *, const uint64_t, void *,
-                        const uint64_t);
-
-typedef void (*zuc_eea3_n_buffer_t)(struct IMB_MGR *, const void *const *, const void *const *,
-                                    const void *const *, void **, const uint32_t *, const uint32_t);
-
-typedef void (*zuc_eia3_n_buffer_t)(struct IMB_MGR *, const void *const *, const void *const *,
-                                    const void *const *, const uint32_t *, uint32_t **,
-                                    const uint32_t);
-
-typedef void (*kasumi_f8_1_buffer_t)(const kasumi_key_sched_t *, const uint64_t, const void *,
-                                     void *, const uint32_t);
-typedef void (*kasumi_f9_1_buffer_t)(const kasumi_key_sched_t *, const void *, const uint32_t,
-                                     void *);
-typedef int (*kasumi_init_f8_key_sched_t)(const void *, kasumi_key_sched_t *);
-typedef int (*kasumi_init_f9_key_sched_t)(const void *, kasumi_key_sched_t *);
-typedef size_t (*kasumi_key_sched_size_t)(void);
-
-/**
- * Snow3G key scheduling structure
- */
-typedef struct snow3g_key_schedule_s {
-        /* KEY */
-        uint32_t k[4];
-} snow3g_key_schedule_t;
-
-typedef void (*snow3g_f8_1_buffer_t)(const snow3g_key_schedule_t *, const void *, const void *,
-                                     void *, const uint32_t);
-
-typedef void (*snow3g_f8_1_buffer_bit_t)(const snow3g_key_schedule_t *, const void *, const void *,
-                                         void *, const uint32_t, const uint32_t);
-
-typedef void (*snow3g_f8_2_buffer_t)(const snow3g_key_schedule_t *, const void *, const void *,
-                                     const void *, void *, const uint32_t, const void *, void *,
-                                     const uint32_t);
-
-typedef void (*snow3g_f8_4_buffer_t)(const snow3g_key_schedule_t *, const void *, const void *,
-                                     const void *, const void *, const void *, void *,
-                                     const uint32_t, const void *, void *, const uint32_t,
-                                     const void *, void *, const uint32_t, const void *, void *,
-                                     const uint32_t);
-
-typedef void (*snow3g_f8_8_buffer_t)(const snow3g_key_schedule_t *, const void *, const void *,
-                                     const void *, const void *, const void *, const void *,
-                                     const void *, const void *, const void *, void *,
-                                     const uint32_t, const void *, void *, const uint32_t,
-                                     const void *, void *, const uint32_t, const void *, void *,
-                                     const uint32_t, const void *, void *, const uint32_t,
-                                     const void *, void *, const uint32_t, const void *, void *,
-                                     const uint32_t, const void *, void *, const uint32_t);
-
-typedef void (*snow3g_f8_8_buffer_multikey_t)(const snow3g_key_schedule_t *const[],
-                                              const void *const[], const void *const[], void *[],
-                                              const uint32_t[]);
-
-typedef void (*snow3g_f8_n_buffer_t)(const snow3g_key_schedule_t *, const void *const[],
-                                     const void *const[], void *[], const uint32_t[],
-                                     const uint32_t);
-
-typedef void (*snow3g_f8_n_buffer_multikey_t)(const snow3g_key_schedule_t *const[],
-                                              const void *const[], const void *const[], void *[],
-                                              const uint32_t[], const uint32_t);
-
-typedef void (*snow3g_f9_1_buffer_t)(const snow3g_key_schedule_t *, const void *, const void *,
-                                     const uint64_t, void *);
-
-typedef int (*snow3g_init_key_sched_t)(const void *, snow3g_key_schedule_t *);
-
-typedef size_t (*snow3g_key_sched_size_t)(void);
-
-typedef uint32_t (*hec_32_t)(const uint8_t *);
-typedef uint64_t (*hec_64_t)(const uint8_t *);
-
-typedef uint32_t (*crc32_fn_t)(const void *, const uint64_t);
-
-typedef void (*aes_ecb_quic_t)(const void *, const void *, void *out, uint64_t);
-
-typedef IMB_JOB *(*chacha20_poly1305_quic_t)(struct IMB_MGR *, IMB_JOB *);
-
-typedef void (*chacha20_hp_quic_t)(const void *, const void *const *, void **, const uint64_t);
-
-typedef void (*sm4_keyexp_t)(const void *, void *, void *);
 
 /* Self-Test callback definitions */
 typedef struct {
@@ -889,8 +713,8 @@ typedef struct {
 } IMB_SELF_TEST_CALLBACK_DATA;
 
 typedef int (*imb_self_test_cb_t)(void *cb_arg, const IMB_SELF_TEST_CALLBACK_DATA *data);
-/* Multi-buffer manager flags passed to alloc_mb_mgr() */
 
+/* Multi-buffer manager flags passed to alloc_mb_mgr() */
 #define IMB_FLAG_SHANI_OFF (1ULL << 0) /**< disable use of SHANI extension */
 #define IMB_FLAG_GFNI_OFF  (1ULL << 1) /**< disable use of GFNI extension */
 
@@ -900,7 +724,6 @@ typedef int (*imb_self_test_cb_t)(void *cb_arg, const IMB_SELF_TEST_CALLBACK_DAT
  * - valid after call to init_mb_mgr() or alloc_mb_mgr()
  * - some HW supported features can be disabled via IMB_FLAG_xxx (see above)
  */
-
 #define IMB_FEATURE_SHANI     (1ULL << 0)
 #define IMB_FEATURE_AESNI     (1ULL << 1)
 #define IMB_FEATURE_PCLMULQDQ (1ULL << 2)
@@ -974,231 +797,6 @@ typedef int (*imb_self_test_cb_t)(void *cb_arg, const IMB_SELF_TEST_CALLBACK_DAT
         (IMB_CPUFLAGS_AVX512_T2 | IMB_CPUFLAGS_AVX2_T4 | IMB_FEATURE_APX | IMB_FEATURE_AVX10_2 |   \
          IMB_FEATURE_AVX10_512)
 
-/* TOP LEVEL (IMB_MGR) Data structure fields */
-
-#define IMB_MAX_BURST_SIZE 128
-#define IMB_MAX_JOBS       (IMB_MAX_BURST_SIZE * 2)
-
-typedef struct IMB_MGR {
-
-        uint64_t flags;    /**< passed to alloc_mb_mgr() */
-        uint64_t features; /**< reflects features of multi-buffer instance */
-
-        uint64_t reserved[4];   /**< reserved for the future */
-        uint8_t reserved2[7];   /**< reserved for the future */
-        uint8_t used_arch_type; /**< Architecture type being used */
-        uint32_t used_arch;     /**< Architecture being used */
-
-        int imb_errno; /**< per mb_mgr error status */
-
-        /**
-         * ARCH handlers / API
-         * Careful as changes here can break ABI compatibility
-         * (always include function pointers at the end of the list,
-         * before "earliest_job")
-         */
-        get_next_job_t get_next_job;
-        submit_job_t submit_job;
-        submit_job_t submit_job_nocheck;
-        get_completed_job_t get_completed_job;
-        flush_job_t flush_job;
-        queue_size_t queue_size;
-        keyexp_t keyexp_128;
-        keyexp_t keyexp_192;
-        keyexp_t keyexp_256;
-        cmac_subkey_gen_t cmac_subkey_gen_128;
-        xcbc_keyexp_t xcbc_keyexp;
-        des_keysched_t des_key_sched;
-        hash_one_block_t sha1_one_block;
-        hash_one_block_t sha224_one_block;
-        hash_one_block_t sha256_one_block;
-        hash_one_block_t sha384_one_block;
-        hash_one_block_t sha512_one_block;
-        hash_one_block_t md5_one_block;
-        hash_fn_t sha1;
-        hash_fn_t sha224;
-        hash_fn_t sha256;
-        hash_fn_t sha384;
-        hash_fn_t sha512;
-        sha3_fn_t sha3_224;
-        sha3_fn_t sha3_256;
-        sha3_fn_t sha3_384;
-        sha3_fn_t sha3_512;
-        shake_fn_t shake128;
-        shake_fn_t shake256;
-        aes_cfb_t aes128_cfb_one;
-
-        aes_gcm_enc_dec_t gcm128_enc;
-        aes_gcm_enc_dec_t gcm192_enc;
-        aes_gcm_enc_dec_t gcm256_enc;
-        aes_gcm_enc_dec_t gcm128_dec;
-        aes_gcm_enc_dec_t gcm192_dec;
-        aes_gcm_enc_dec_t gcm256_dec;
-        aes_gcm_init_t gcm128_init;
-        aes_gcm_init_t gcm192_init;
-        aes_gcm_init_t gcm256_init;
-        aes_gcm_enc_dec_update_t gcm128_enc_update;
-        aes_gcm_enc_dec_update_t gcm192_enc_update;
-        aes_gcm_enc_dec_update_t gcm256_enc_update;
-        aes_gcm_enc_dec_update_t gcm128_dec_update;
-        aes_gcm_enc_dec_update_t gcm192_dec_update;
-        aes_gcm_enc_dec_update_t gcm256_dec_update;
-        aes_gcm_enc_dec_finalize_t gcm128_enc_finalize;
-        aes_gcm_enc_dec_finalize_t gcm192_enc_finalize;
-        aes_gcm_enc_dec_finalize_t gcm256_enc_finalize;
-        aes_gcm_enc_dec_finalize_t gcm128_dec_finalize;
-        aes_gcm_enc_dec_finalize_t gcm192_dec_finalize;
-        aes_gcm_enc_dec_finalize_t gcm256_dec_finalize;
-        aes_gcm_precomp_t gcm128_precomp;
-        aes_gcm_precomp_t gcm192_precomp;
-        aes_gcm_precomp_t gcm256_precomp;
-        aes_gcm_pre_t gcm128_pre;
-        aes_gcm_pre_t gcm192_pre;
-        aes_gcm_pre_t gcm256_pre;
-
-        zuc_eea3_n_buffer_t eea3_n_buffer;
-
-        kasumi_f8_1_buffer_t f8_1_buffer;
-        kasumi_f9_1_buffer_t f9_1_buffer;
-        kasumi_init_f8_key_sched_t kasumi_init_f8_key_sched;
-        kasumi_init_f9_key_sched_t kasumi_init_f9_key_sched;
-        kasumi_key_sched_size_t kasumi_key_sched_size;
-
-        snow3g_f8_1_buffer_bit_t snow3g_f8_1_buffer_bit;
-        snow3g_f8_1_buffer_t snow3g_f8_1_buffer;
-        snow3g_f8_2_buffer_t snow3g_f8_2_buffer;
-        snow3g_f8_4_buffer_t snow3g_f8_4_buffer;
-        snow3g_f8_8_buffer_t snow3g_f8_8_buffer;
-        snow3g_f8_n_buffer_t snow3g_f8_n_buffer;
-        snow3g_f8_8_buffer_multikey_t snow3g_f8_8_buffer_multikey;
-        snow3g_f8_n_buffer_multikey_t snow3g_f8_n_buffer_multikey;
-        snow3g_f9_1_buffer_t snow3g_f9_1_buffer;
-        snow3g_init_key_sched_t snow3g_init_key_sched;
-        snow3g_key_sched_size_t snow3g_key_sched_size;
-
-        ghash_t ghash;
-        zuc_eia3_n_buffer_t eia3_n_buffer;
-        aes_gcm_init_var_iv_t gcm128_init_var_iv;
-        aes_gcm_init_var_iv_t gcm192_init_var_iv;
-        aes_gcm_init_var_iv_t gcm256_init_var_iv;
-
-        aes_gmac_init_t gmac128_init;
-        aes_gmac_init_t gmac192_init;
-        aes_gmac_init_t gmac256_init;
-        aes_gmac_update_t gmac128_update;
-        aes_gmac_update_t gmac192_update;
-        aes_gmac_update_t gmac256_update;
-        aes_gmac_finalize_t gmac128_finalize;
-        aes_gmac_finalize_t gmac192_finalize;
-        aes_gmac_finalize_t gmac256_finalize;
-        hec_32_t hec_32;
-        hec_64_t hec_64;
-        cmac_subkey_gen_t cmac_subkey_gen_256;
-        aes_gcm_pre_t ghash_pre;
-        crc32_fn_t crc32_ethernet_fcs;
-        crc32_fn_t crc16_x25;
-        crc32_fn_t crc32_sctp;
-        crc32_fn_t crc24_lte_a;
-        crc32_fn_t crc24_lte_b;
-        crc32_fn_t crc16_fp_data;
-        crc32_fn_t crc11_fp_header;
-        crc32_fn_t crc7_fp_header;
-        crc32_fn_t crc10_iuup_data;
-        crc32_fn_t crc6_iuup_header;
-        crc32_fn_t crc32_wimax_ofdma_data;
-        crc32_fn_t crc8_wimax_ofdma_hcs;
-
-        chacha_poly_init_t chacha20_poly1305_init;
-        chacha_poly_enc_dec_update_t chacha20_poly1305_enc_update;
-        chacha_poly_enc_dec_update_t chacha20_poly1305_dec_update;
-        chacha_poly_finalize_t chacha20_poly1305_finalize;
-
-        burst_fn_t get_next_burst;
-        burst_fn_t submit_burst;
-        burst_fn_t submit_burst_nocheck;
-        burst_fn_t flush_burst;
-        submit_cipher_burst_t submit_cipher_burst;
-        submit_cipher_burst_t submit_cipher_burst_nocheck;
-        submit_hash_burst_t submit_hash_burst;
-        submit_hash_burst_t submit_hash_burst_nocheck;
-        aes_cfb_t aes256_cfb_one;
-
-        aes_ecb_quic_t aes_ecb_128_quic;
-        aes_ecb_quic_t aes_ecb_256_quic;
-
-        void (*set_suite_id)(struct IMB_MGR *, IMB_JOB *);
-
-        chacha20_poly1305_quic_t chacha20_poly1305_quic;
-        chacha20_hp_quic_t chacha20_hp_quic;
-
-        sm4_keyexp_t sm4_keyexp;
-
-        imb_self_test_cb_t self_test_cb_fn;
-        void *self_test_cb_arg;
-
-        submit_cipher_burst_t submit_aead_burst;
-        submit_cipher_burst_t submit_aead_burst_nocheck;
-
-        /* in-order scheduler fields */
-        int earliest_job; /**< byte offset, -1 if none */
-        int next_job;     /**< byte offset */
-        IMB_JOB jobs[IMB_MAX_JOBS];
-
-        /* out of order managers */
-        void *aes128_ooo;
-        void *aes192_ooo;
-        void *aes256_ooo;
-        void *docsis128_sec_ooo;
-        void *docsis128_crc32_sec_ooo;
-        void *docsis256_sec_ooo;
-        void *docsis256_crc32_sec_ooo;
-        void *des_enc_ooo;
-        void *des_dec_ooo;
-        void *des3_enc_ooo;
-        void *des3_dec_ooo;
-        void *docsis_des_enc_ooo;
-        void *docsis_des_dec_ooo;
-
-        void *hmac_sha_1_ooo;
-        void *hmac_sha_224_ooo;
-        void *hmac_sha_256_ooo;
-        void *hmac_sha_384_ooo;
-        void *hmac_sha_512_ooo;
-        void *hmac_md5_ooo;
-        void *aes_xcbc_ooo;
-        void *aes_ccm_ooo;
-        void *aes_cmac_ooo;
-        void *zuc_eea3_ooo;
-        void *zuc_eia3_ooo;
-        void *aes256_ccm_ooo;
-        void *aes256_cmac_ooo;
-        void *snow3g_uea2_ooo;
-        void *snow3g_uia2_ooo;
-        void *sha_1_ooo;
-        void *sha_224_ooo;
-        void *sha_256_ooo;
-        void *sha_384_ooo;
-        void *sha_512_ooo;
-        void *sha3_224_ooo;
-        void *sha3_256_ooo;
-        void *sha3_384_ooo;
-        void *sha3_512_ooo;
-        void *shake128_ooo;
-        void *shake256_ooo;
-        void *aes_cfb_128_ooo;
-        void *aes_cfb_192_ooo;
-        void *aes_cfb_256_ooo;
-        void *zuc_nea6_ooo;
-        void *zuc_nia6_ooo;
-        void *zuc_nca6_enc_ooo;
-        void *zuc_nca6_dec_ooo;
-        void *snow5g_ooo;
-        void *snow5g_nia4_ooo;
-        void *snow5g_nca4_enc_ooo;
-        void *snow5g_nca4_dec_ooo;
-        void *end_ooo; /* add new out-of-order managers above this line */
-} IMB_MGR;
-
 /**
  * API definitions
  */
@@ -1243,13 +841,28 @@ IMB_DLL_EXPORT const char *
 imb_get_strerror(int errnum);
 
 /**
- * get_next_job returns a job object. This must be filled in and returned
- * via submit_job before get_next_job is called again.
- * After submit_job is called, one should call get_completed_job() at least
- * once (and preferably until it returns NULL).
- * get_completed_job and flush_job returns a job object. This job object ceases
- * to be usable at the next call to get_next_job
+ * @brief API to get the features supported by the manager
+ *
+ * @param mb_mgr Pointer to multi-buffer manager
+ * @param p_features Pointer to store features bit mask
+ *
+ * @return Operation status
+ * @retval 0 success
  */
+IMB_DLL_EXPORT int
+imb_get_features(IMB_MGR *mb_mgr, uint64_t *p_features);
+
+/**
+ * @brief API to get the flags manager was initialized with
+ *
+ * @param mb_mgr Pointer to multi-buffer manager
+ * @param p_flags Pointer to store flags bit mask
+ *
+ * @return Operation status
+ * @retval 0 success
+ */
+IMB_DLL_EXPORT int
+imb_get_flags(IMB_MGR *mb_mgr, uint64_t *p_flags);
 
 /**
  * @brief Allocates memory for multi-buffer manager instance
@@ -1311,41 +924,15 @@ IMB_DLL_EXPORT IMB_MGR *
 imb_set_pointers_mb_mgr(void *ptr, const uint64_t flags, const unsigned reset_mgr);
 
 /**
- * @brief Retrieves the bitmask with the features supported by the library,
+ * @brief Retrieves the bit mask with available CPU features supported by the library,
  *        without having to allocate/initialize IMB_MGR;
  *
- * @return Bitmask containing feature flags
+ * See IMB_CPUFLAGS_XXX or IMB_FEATURE_XXX (i.e. IMB_CPUFLAGS_SSE or IMB_FEATURE_AVX_IFMA).
+ *
+ * @return Bit mask containing CPU feature flags
  */
 IMB_DLL_EXPORT uint64_t
-imb_get_feature_flags(void);
-
-/**
- * @brief Initialize Multi-Buffer Manager structure.
- *
- * Must be called before calling JOB/BURST API.
- *
- * @param [in,out] state Pointer to IMB_MGR structure
- *                       For binary compatibility between library versions, it
- *                       is recommended to allocate the IMB_MGR structure using
- *                       the alloc_mb_mgr() API
- */
-IMB_DLL_EXPORT void
-init_mb_mgr_avx2(IMB_MGR *state);
-/**
- * @copydoc init_mb_mgr_avx2
- */
-IMB_DLL_EXPORT void
-init_mb_mgr_avx512(IMB_MGR *state);
-/**
- * @copydoc init_mb_mgr_avx2
- */
-IMB_DLL_EXPORT void
-init_mb_mgr_sse(IMB_MGR *state);
-/**
- * @copydoc init_mb_mgr_avx2
- */
-IMB_DLL_EXPORT void
-init_mb_mgr_avx10(IMB_MGR *state);
+imb_get_cpu_features(void);
 
 /**
  * @brief Submit job for processing after validating.
@@ -1357,23 +944,7 @@ init_mb_mgr_avx10(IMB_MGR *state);
  *         error conditions
  */
 IMB_DLL_EXPORT IMB_JOB *
-submit_job_avx2(IMB_MGR *state);
-/**
- * @copydoc submit_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-submit_job_avx512(IMB_MGR *state);
-/**
- * @copydoc submit_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-submit_job_sse(IMB_MGR *state);
-
-/**
- * @copydoc submit_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-submit_job_avx10(IMB_MGR *state);
+imb_submit_job(IMB_MGR *state);
 
 /**
  * @brief Submit job for processing without validating.
@@ -1385,22 +956,7 @@ submit_job_avx10(IMB_MGR *state);
  * @return Pointer to completed IMB_JOB or NULL if no job completed
  */
 IMB_DLL_EXPORT IMB_JOB *
-submit_job_nocheck_avx2(IMB_MGR *state);
-/**
- * @copydoc submit_job_nocheck_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-submit_job_nocheck_avx512(IMB_MGR *state);
-/**
- * @copydoc submit_job_nocheck_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-submit_job_nocheck_sse(IMB_MGR *state);
-/**
- * @copydoc submit_job_nocheck_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-submit_job_nocheck_avx10(IMB_MGR *state);
+imb_submit_job_nocheck(IMB_MGR *state);
 
 /**
  * @brief Force processing until next job in queue is completed.
@@ -1410,22 +966,7 @@ submit_job_nocheck_avx10(IMB_MGR *state);
  * @return Pointer to completed IMB_JOB or NULL if no more jobs to process
  */
 IMB_DLL_EXPORT IMB_JOB *
-flush_job_avx2(IMB_MGR *state);
-/**
- * @copydoc flush_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-flush_job_avx512(IMB_MGR *state);
-/**
- * @copydoc flush_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-flush_job_sse(IMB_MGR *state);
-/**
- * @copydoc flush_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-flush_job_avx10(IMB_MGR *state);
+imb_flush_job(IMB_MGR *state);
 
 /**
  * @brief Get number of jobs queued to be processed.
@@ -1435,22 +976,7 @@ flush_job_avx10(IMB_MGR *state);
  * @return Number of jobs in the queue
  */
 IMB_DLL_EXPORT uint32_t
-queue_size_avx2(IMB_MGR *state);
-/**
- * @copydoc queue_size_avx2
- */
-IMB_DLL_EXPORT uint32_t
-queue_size_avx512(IMB_MGR *state);
-/**
- * @copydoc queue_size_avx2
- */
-IMB_DLL_EXPORT uint32_t
-queue_size_sse(IMB_MGR *state);
-/**
- * @copydoc queue_size_avx2
- */
-IMB_DLL_EXPORT uint32_t
-queue_size_avx10(IMB_MGR *state);
+imb_queue_size(IMB_MGR *state);
 
 /**
  * @brief Get next completed job.
@@ -1460,47 +986,24 @@ queue_size_avx10(IMB_MGR *state);
  * @return Pointer to completed IMB_JOB or NULL if next job not complete
  */
 IMB_DLL_EXPORT IMB_JOB *
-get_completed_job_avx2(IMB_MGR *state);
-/**
- * @copydoc get_completed_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-get_completed_job_avx512(IMB_MGR *state);
-/**
- * @copydoc get_completed_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-get_completed_job_sse(IMB_MGR *state);
-/**
- * @copydoc get_completed_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-get_completed_job_avx10(IMB_MGR *state);
+imb_get_completed_job(IMB_MGR *state);
 
 /**
  * @brief Get next available job.
+ *
+ * get_next_job() returns a job object. This must be filled in and returned
+ * via submit_job() before get_next_job() is called again.
+ * After submit_job() is called, one should call get_completed_job() at least
+ * once (and preferably until it returns NULL).
+ * get_completed_job() and flush_job() returns a job object. This job object ceases
+ * to be usable at the next call to get_next_job().
  *
  * @param [in,out] state Pointer to initialized IMB_MGR structure
  *
  * @return Pointer to next free IMB_JOB in the queue
  */
 IMB_DLL_EXPORT IMB_JOB *
-get_next_job_avx2(IMB_MGR *state);
-/**
- * @copydoc get_next_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-get_next_job_avx512(IMB_MGR *state);
-/**
- * @copydoc get_next_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-get_next_job_sse(IMB_MGR *state);
-/**
- * @copydoc get_next_job_avx2
- */
-IMB_DLL_EXPORT IMB_JOB *
-get_next_job_avx10(IMB_MGR *state);
+imb_get_next_job(IMB_MGR *state);
 
 /**
  * @brief Automatically initialize most performant
@@ -1513,101 +1016,164 @@ get_next_job_avx10(IMB_MGR *state);
 IMB_DLL_EXPORT void
 init_mb_mgr_auto(IMB_MGR *state, IMB_ARCH *arch);
 
-/*
- * Wrapper macros to call arch API's set up
- * at init phase of multi-buffer manager.
+/**
+ * @brief Initialize multi-buffer manager for SSE architecture
  *
- * For example, after calling init_mb_mgr_sse(&mgr)
- * The 'mgr' structure be set up so that:
- *   mgr.get_next_job will point to get_next_job_sse(),
- *   mgr.submit_job will point to submit_job_sse(),
- *   mgr.submit_job_nocheck will point to submit_job_nocheck_sse(),
- *   mgr.get_completed_job will point to get_completed_job_sse(),
- *   mgr.flush_job will point to flush_job_sse(),
- *   mgr.queue_size will point to queue_size_sse()
- *   mgr.keyexp_128 will point to aes_keyexp_128_sse()
- *   mgr.keyexp_192 will point to aes_keyexp_192_sse()
- *   mgr.keyexp_256 will point to aes_keyexp_256_sse()
- *   etc.
- *
- * Direct use of arch API's may result in better performance.
- * Using below indirect interface may produce slightly worse performance but
- * it can simplify application implementation.
- * The test app provides example of using the indirect interface.
+ * @param [in,out] state Pointer to IMB_MGR struct
  */
+IMB_DLL_EXPORT void
+init_mb_mgr_sse(IMB_MGR *state);
 
 /**
- * @brief Get next available job.
+ * @brief Initialize multi-buffer manager for AVX2 architecture
  *
- * @param [in,out] _mgr Pointer to initialized IMB_MGR structure
- *
- * @return Pointer to next free IMB_JOB in the queue
+ * @param [in,out] state Pointer to IMB_MGR struct
  */
-#define IMB_GET_NEXT_JOB(_mgr) ((_mgr)->get_next_job((_mgr)))
+IMB_DLL_EXPORT void
+init_mb_mgr_avx2(IMB_MGR *state);
 
 /**
- * @brief Submit job for processing after validating.
+ * @brief Initialize multi-buffer manager for AVX512 architecture
  *
- * @param [in,out] _mgr Pointer to initialized IMB_MGR structure
- *
- * @return Pointer to completed IMB_JOB or NULL if no job completed
- *         If NULL, imb_get_errno() can be used to check for potential
- *         error conditions
+ * @param [in,out] state Pointer to IMB_MGR struct
  */
-#define IMB_SUBMIT_JOB(_mgr) ((_mgr)->submit_job((_mgr)))
+IMB_DLL_EXPORT void
+init_mb_mgr_avx512(IMB_MGR *state);
 
 /**
- * @brief Submit job for processing without validating.
+ * @brief Initialize multi-buffer manager for AVX10 architecture
  *
- * This is more performant but less secure than submit_job_xxx()
- *
- * @param [in,out] _mgr Pointer to initialized IMB_MGR structure
- *
- * @return Pointer to completed IMB_JOB or NULL if no job completed
+ * @param [in,out] state Pointer to IMB_MGR struct
  */
-#define IMB_SUBMIT_JOB_NOCHECK(_mgr) ((_mgr)->submit_job_nocheck((_mgr)))
+IMB_DLL_EXPORT void
+init_mb_mgr_avx10(IMB_MGR *state);
 
 /**
- * @brief Get next completed job.
+ * @brief Get information about an out-of-order (OOO) manager for testing
  *
- * @param [in,out] _mgr Pointer to initialized IMB_MGR structure
+ * This API allows test applications to access individual OOO manager structures
+ * for memory scanning to detect sensitive data leaks.
  *
- * @return Pointer to completed IMB_JOB or NULL if next job not complete
+ * @param [in]  state         Pointer to IMB_MGR structure
+ * @param [in]  index         Index of OOO manager (-1 for IMB_MGR, then 0 to count-1)
+ * @param [out] ooo_ptr       Pointer to OOO manager structure (can be NULL if not initialized)
+ * @param [out] ooo_size      Size of OOO manager in bytes (can be NULL)
+ * @param [out] ooo_name      Name of OOO manager as NULL-terminated string (can be NULL)
+ *
+ * @return 0 on success, -1 if index is out of bounds
+ *
+ * @note This API is for TESTING/VALIDATION ONLY and should not be used in production code.
+ * @note If the OOO manager at the given index is NULL (not initialized), ooo_ptr will be NULL
+ *       but the function will still return 0 (success) as long as index is valid.
  */
-#define IMB_GET_COMPLETED_JOB(_mgr) ((_mgr)->get_completed_job((_mgr)))
+IMB_DLL_EXPORT int
+imb_get_ooo_mgr(IMB_MGR *state, const int index, void **ooo_ptr, size_t *ooo_size,
+                const char **ooo_name);
 
 /**
- * @brief Force processing until next job in queue is completed.
+ * @brief API to get a string with the architecture type being used.
  *
- * @param [in,out] _mgr Pointer to initialized IMB_MGR structure
+ * init_mb_mgr_XXX() must be called before this function call,
+ * where XXX is the desired architecture (can be auto).
  *
- * @return Pointer to completed IMB_JOB or NULL if no more jobs to process
+ * @param [in] state        pointer to IMB_MGR
+ * @param [out] arch_type   string with architecture type
+ * @param [out] description string with description of the arch type
+ *
+ * @return operation status.
+ * @retval 0 success
+ * @retval IMB_ERR_NULL_MBMGR invalid \a mb_mgr pointer
  */
-#define IMB_FLUSH_JOB(_mgr) ((_mgr)->flush_job((_mgr)))
+IMB_DLL_EXPORT int
+imb_get_arch_type_string(const IMB_MGR *state, const char **arch_type, const char **description);
 
 /**
- * @brief Get number of jobs queued to be processed.
+ * @brief Sets callback function to be invoked when running a self test.
  *
- * @param [in,out] _mgr Pointer to initialized IMB_MGR structure
+ * If \a cb_fn is NULL then self test callback functionality gets disabled.
  *
- * @return Number of jobs in the queue
+ * @param [in] state   pointer to IMB_MGR
+ * @param [in] cb_fn   pointer to self test callback function
+ * @param [in] cb_arg  argument to be passed to the callback function \a cb_fn
+ *
+ * @return Operation status of \a IMB_ERR type
+ * @retval 0 on success
  */
-#define IMB_QUEUE_SIZE(_mgr) ((_mgr)->queue_size((_mgr)))
+IMB_DLL_EXPORT int
+imb_self_test_set_cb(IMB_MGR *state, imb_self_test_cb_t cb_fn, void *cb_arg);
+
+/**
+ * @brief Retrieves details of callback function to be invoked when running a self test.
+ *
+ * It may be useful to check status of self test callback or daisy chain
+ * a few callbacks together.
+ *
+ * @param [in] state       pointer to IMB_MGR
+ * @param [in,out] cb_fn   pointer to place pointer to self test callback function
+ * @param [in,out] cb_arg  pointer to place callback function argument
+ *
+ * @return Operation status of \a IMB_ERR type
+ * @retval 0 on success
+ */
+IMB_DLL_EXPORT int
+imb_self_test_get_cb(IMB_MGR *state, imb_self_test_cb_t *cb_fn, void **cb_arg);
+
+/**
+ * @brief Sets up suite_id and session_id fields for selected cipher suite in
+ *        provided \a job structure
+ *
+ * This is mandatory operation for BURST API as suite_id is used to speed up
+ * job dispatch process.
+ * This operation is optional but helpful for JOB API use case.
+ *
+ * 'session_id' field is for application use to optimize job set up process.
+ * If JOB structure provided by library for a new operation has same session ID
+ * as required for the next operation then only message pointers and sizes
+ * need to be set up by the application. All other session fields are guaranteed
+ * to be unmodified by the library:
+ * - cipher mode
+ * - cipher direction
+ * - hash algorithm
+ * - key size
+ * - encrypt & decrypt key pointers
+ * - suite_id
+ * If allocated JOB structure contains different session ID then
+ * all required session and crypto operation fields need to be set up.
+ *
+ * In connection oriented applications, a template filled-in job structure
+ * can be cached within connection structure and reused in submit operations.
+ *
+ * For given set of parameters: cipher mode, cipher key size,
+ * cipher direction and authentication mode, suite_id field is the same.
+ *
+ * @see IMB_SUBMIT_BURST()
+ * @see IMB_SUBMIT_BURST_NOCHECK()
+ * @see IMB_SUBMIT_JOB()
+ * @see IMB_SUBMIT_JOB_NOCHECK()
+ *
+ * @param [in]     state   pointer to IMB_MGR
+ * @param [in,out] job     pointer to prepared JOB structure
+ *
+ * @return Session ID value
+ * @retval 0 on error
+ */
+IMB_DLL_EXPORT uint32_t
+imb_set_session(IMB_MGR *state, IMB_JOB *job);
 
 /**
  * @brief Get next available burst
  *        (list of pointers to available IMB_JOB structures).
  *
- * @param [in,out] _mgr     Pointer to initialized IMB_MGR structure
- * @param [in] _n_jobs      Requested number of burst jobs
- * @param [out] _jobs       List of pointers to returned jobs
+ * @param [in] n_jobs      Requested number of burst jobs
+ * @param [out] jobs       List of pointers to returned jobs
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  *
  * @return Number of returned jobs.
  *         May be less than number of requested jobs if not enough space in
  *         queue. IMB_FLUSH_BURST() can be used to free up space.
  */
-#define IMB_GET_NEXT_BURST(_mgr, _n_jobs, _jobs)                                                   \
-        ((_mgr)->get_next_burst((_mgr), (_n_jobs), (_jobs)))
+IMB_DLL_EXPORT uint32_t
+imb_get_next_burst(IMB_MGR *state, const uint32_t n_jobs, IMB_JOB **jobs);
 
 /**
  * @brief Submit multiple jobs to be processed after validating.
@@ -1615,17 +1181,19 @@ init_mb_mgr_auto(IMB_MGR *state, IMB_ARCH *arch);
  * Prior to submission, \a _jobs need to be initialized with correct
  * crypto job parameters and followed with a call to imb_set_session().
  *
- * @param [in,out] _mgr         Pointer to initialized IMB_MGR structure
- * @param [in] _n_jobs          Number of jobs to submit for processing
- * @param [in,out] _jobs        In:  List of pointers to jobs for submission
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ * @param [in] n_jobs          Number of jobs to submit for processing
+ * @param [in,out] jobs        In:  List of pointers to jobs for submission
  *                              Out: List of pointers to completed jobs
+ *
  * @see imb_set_session()
  *
  * @return Number of completed jobs or zero on error.
  *         If zero, imb_get_errno() can be used to check for potential
  *         error conditions and _jobs[0] contains pointer to invalid job
  */
-#define IMB_SUBMIT_BURST(_mgr, _n_jobs, _jobs) ((_mgr)->submit_burst((_mgr), (_n_jobs), (_jobs)))
+IMB_DLL_EXPORT uint32_t
+imb_submit_burst(IMB_MGR *state, const uint32_t n_jobs, IMB_JOB **jobs);
 
 /**
  * @brief Submit multiple jobs to be processed without validating.
@@ -1633,215 +1201,315 @@ init_mb_mgr_auto(IMB_MGR *state, IMB_ARCH *arch);
  * Prior to submission \a _jobs need to be initialized with correct
  * crypto job parameters and followed with call to imb_set_session().
  *
- * @param [in,out] _mgr         Pointer to initialized IMB_MGR structure
- * @param [in] _n_jobs          Number of jobs to submit for processing
- * @param [in,out] _jobs        In:  List of pointers to jobs for submission
+ * @param [in] n_jobs          Number of jobs to submit for processing
+ * @param [in,out] jobs        In:  List of pointers to jobs for submission
  *                              Out: List of pointers to completed jobs
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  * @see imb_set_session()
  *
  * @return Number of completed jobs or zero on error
  */
-#define IMB_SUBMIT_BURST_NOCHECK(_mgr, _n_jobs, _jobs)                                             \
-        ((_mgr)->submit_burst_nocheck((_mgr), (_n_jobs), (_jobs)))
+IMB_DLL_EXPORT uint32_t
+imb_submit_burst_nocheck(IMB_MGR *state, const uint32_t n_jobs, IMB_JOB **jobs);
 
 /**
  * @brief Force up to \a max_jobs outstanding jobs to completion.
  *
- * @param [in,out] _mgr         Pointer to initialized IMB_MGR structure
- * @param [in] _max_jobs        Maximum number of jobs to flush
- * @param [out] _jobs           List of pointers to completed jobs
+ * @param [in] n_jobs        Maximum number of jobs to flush
+ * @param [out] jobs           List of pointers to completed jobs
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  *
  * @return Number of completed jobs
  */
-#define IMB_FLUSH_BURST(_mgr, _max_jobs, _jobs) ((_mgr)->flush_burst((_mgr), (_max_jobs), (_jobs)))
+IMB_DLL_EXPORT uint32_t
+imb_flush_burst(IMB_MGR *state, const uint32_t n_jobs, IMB_JOB **jobs);
+
+/**
+ * @brief Retrieves minimum burst size for good performance on cipher algorithms.
+ *
+ * Depending on the architecture used, this function returns the minimum
+ * burst size to be used for good performance on the cipher-only burst API.
+ * The output burst size can be 1 (in case of a synchronous single-buffer implementation
+ * or 0 if the algorithm is not supported by the API).
+ *
+ * @param [in] mb_mgr          pointer to IMB MGR structure
+ * @param [in] cipher_mode     cipher mode
+ * @param [out] out_burst_size pointer to store min burst size
+ *
+ * @return operation status.
+ * @retval 0 success
+ * @retval IMB_ERR_CIPHER_MODE  not supported \a algo
+ * @retval IMB_ERR_NULL_MBMGR invalid \a mb_mgr pointer
+ * @retval IMB_ERR_NULL_BURST invalid \a out_burst_size pointer
+ */
+IMB_DLL_EXPORT int
+imb_cipher_burst_get_size(const IMB_MGR *mb_mgr, const IMB_CIPHER_MODE cipher_mode,
+                          unsigned *out_burst_size);
 
 /**
  * Submit multiple cipher jobs to be processed synchronously after validating.
  *
- * @param [in] _mgr        Pointer to initialized IMB_MGR structure
- * @param [in,out] _jobs   Pointer to array of IMB_JOB structures
- * @param [in] _n_jobs     Number of jobs to process
- * @param [in] _cipher     Cipher algorithm of type #IMB_CIPHER_MODE
- * @param [in] _dir        Cipher direction of type #IMB_CIPHER_DIRECTION
- * @param [in] _key_size   Key size in bytes of type #IMB_KEY_SIZE_BYTES
+ * @param [in,out] jobs   Pointer to array of IMB_JOB structures
+ * @param [in] n_jobs     Number of jobs to process
+ * @param [in] cipher_mode     Cipher algorithm of type #IMB_CIPHER_MODE
+ * @param [in] cipher_direction        Cipher direction of type #IMB_CIPHER_DIRECTION
+ * @param [in] key_size   Key size in bytes of type #IMB_KEY_SIZE_BYTES
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  *
  * @return Number of completed jobs
  */
-#define IMB_SUBMIT_CIPHER_BURST(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)                    \
-        ((_mgr)->submit_cipher_burst((_mgr), (_jobs), (_n_jobs), (_cipher), (_dir), (_key_size)))
+IMB_DLL_EXPORT uint32_t
+imb_submit_cipher_burst(IMB_MGR *state, IMB_JOB *jobs, const uint32_t n_jobs,
+                        const IMB_CIPHER_MODE cipher_mode,
+                        const IMB_CIPHER_DIRECTION cipher_direction,
+                        const IMB_KEY_SIZE_BYTES key_size);
+
 /**
  * Submit multiple cipher jobs to be processed synchronously without validating.
  *
  * This is more performant but less secure than IMB_SUBMIT_CIPHER_BURST().
  *
- * @param [in] _mgr        Pointer to initialized IMB_MGR structure
- * @param [in,out] _jobs   Pointer to array of IMB_JOB structures
- * @param [in] _n_jobs     Number of jobs to process
- * @param [in] _cipher     Cipher algorithm of type #IMB_CIPHER_MODE
- * @param [in] _dir        Cipher direction of type #IMB_CIPHER_DIRECTION
- * @param [in] _key_size   Key size in bytes of type #IMB_KEY_SIZE_BYTES
+ * @param [in,out] jobs   Pointer to array of IMB_JOB structures
+ * @param [in] n_jobs     Number of jobs to process
+ * @param [in] cipher_mode     Cipher algorithm of type #IMB_CIPHER_MODE
+ * @param [in] cipher_direction        Cipher direction of type #IMB_CIPHER_DIRECTION
+ * @param [in] key_size   Key size in bytes of type #IMB_KEY_SIZE_BYTES
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  *
  * @return Number of completed jobs
  */
-#define IMB_SUBMIT_CIPHER_BURST_NOCHECK(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)            \
-        ((_mgr)->submit_cipher_burst_nocheck((_mgr), (_jobs), (_n_jobs), (_cipher), (_dir),        \
-                                             (_key_size)))
+IMB_DLL_EXPORT uint32_t
+imb_submit_cipher_burst_nocheck(IMB_MGR *state, IMB_JOB *jobs, const uint32_t n_jobs,
+                                const IMB_CIPHER_MODE cipher_mode,
+                                const IMB_CIPHER_DIRECTION cipher_direction,
+                                const IMB_KEY_SIZE_BYTES key_size);
+
+/**
+ * @brief Retrieves minimum burst size for good performance on hash algorithms.
+ *
+ * Depending on the architecture used, this function returns the minimum
+ * burst size to be used for good performance on the hash-only burst API.
+ * Note that this will not return a value for best performance, but the minimum needed
+ * to start maximizing the CPU core (i.e. enough buffers to utilize efficiently the CPU core
+ * resources, taking into account that when buffers have different sizes, a higher burst size is
+ * recommended).
+ *
+ * The output burst size may also be 1 (in case of a synchronous single-buffer implementation
+ * or 0 if the algorithm is not supported by the API).
+ *
+ * @param [in] mb_mgr          pointer to IMB MGR structure
+ * @param [in] algo            hash algorithm
+ * @param [out] out_burst_size pointer to store min burst size
+ *
+ * @return operation status.
+ * @retval 0 success
+ * @retval IMB_ERR_HASH_ALGO  not supported \a algo
+ * @retval IMB_ERR_NULL_MBMGR invalid \a mb_mgr pointer
+ * @retval IMB_ERR_NULL_BURST invalid \a out_burst_size pointer
+ */
+IMB_DLL_EXPORT int
+imb_hash_burst_get_size(const IMB_MGR *mb_mgr, const IMB_HASH_ALG algo, unsigned *out_burst_size);
+
 /**
  * Submit multiple hash jobs to be processed synchronously after validating.
  *
- * @param [in] _mgr        Pointer to initialized IMB_MGR structure
- * @param [in,out] _jobs   Pointer to array of IMB_JOB structures
- * @param [in] _n_jobs     Number of jobs to process
- * @param [in] _hash       Hash algorithm of type #IMB_HASH_ALG
+ * @param [in,out] jobs   Pointer to array of IMB_JOB structures
+ * @param [in] n_jobs     Number of jobs to process
+ * @param [in] hash_alg       Hash algorithm of type #IMB_HASH_ALG
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  *
  * @return Number of completed jobs
  */
-#define IMB_SUBMIT_HASH_BURST(_mgr, _jobs, _n_jobs, _hash)                                         \
-        ((_mgr)->submit_hash_burst((_mgr), (_jobs), (_n_jobs), (_hash)))
+IMB_DLL_EXPORT uint32_t
+imb_submit_hash_burst(IMB_MGR *state, IMB_JOB *jobs, const uint32_t n_jobs,
+                      const IMB_HASH_ALG hash_alg);
 
 /**
  * Submit multiple hash jobs to be processed synchronously without validating.
  *
  * This is more performant but less secure than IMB_SUBMIT_HASH_BURST().
  *
- * @param [in] _mgr        Pointer to initialized IMB_MGR structure
- * @param [in,out] _jobs   Pointer to array of IMB_JOB structures
- * @param [in] _n_jobs     Number of jobs to process
- * @param [in] _hash       Hash algorithm of type #IMB_HASH_ALG
+ * @param [in,out] jobs   Pointer to array of IMB_JOB structures
+ * @param [in] n_jobs     Number of jobs to process
+ * @param [in] hash_alg       Hash algorithm of type #IMB_HASH_ALG
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  *
  * @return Number of completed jobs
  */
-#define IMB_SUBMIT_HASH_BURST_NOCHECK(_mgr, _jobs, _n_jobs, _hash)                                 \
-        ((_mgr)->submit_hash_burst_nocheck((_mgr), (_jobs), (_n_jobs), (_hash)))
+IMB_DLL_EXPORT uint32_t
+imb_submit_hash_burst_nocheck(IMB_MGR *state, IMB_JOB *jobs, const uint32_t n_jobs,
+                              const IMB_HASH_ALG hash_alg);
+
+/**
+ * @brief Retrieves minimum burst size for good performance on AEAD algorithms.
+ *
+ * Depending on the architecture used, this function returns the minimum
+ * burst size to be used for good performance on the AEAD burst API.
+ * The output burst size can be 1 (in case of a synchronous single-buffer implementation
+ * or 0 if the algorithm is not supported by the API).
+ *
+ * @param [in] mb_mgr          pointer to IMB MGR structure
+ * @param [in] cipher_mode     cipher mode
+ * @param [out] out_burst_size pointer to store min burst size
+ *
+ * @return operation status.
+ * @retval 0 success
+ * @retval IMB_ERR_CIPHER_MODE  not supported \a algo
+ * @retval IMB_ERR_NULL_MBMGR invalid \a mb_mgr pointer
+ * @retval IMB_ERR_NULL_BURST invalid \a out_burst_size pointer
+ */
+IMB_DLL_EXPORT int
+imb_aead_burst_get_size(const IMB_MGR *mb_mgr, const IMB_CIPHER_MODE cipher_mode,
+                        unsigned *out_burst_size);
 
 /**
  * Submit multiple cipher jobs to be processed synchronously after validating.
  *
- * @param [in] _mgr        Pointer to initialized IMB_MGR structure
- * @param [in,out] _jobs   Pointer to array of IMB_JOB structures
- * @param [in] _n_jobs     Number of jobs to process
- * @param [in] _cipher     Cipher algorithm of type #IMB_CIPHER_MODE
- * @param [in] _dir        Cipher direction of type #IMB_CIPHER_DIRECTION
- * @param [in] _key_size   Key size in bytes of type #IMB_KEY_SIZE_BYTES
+ * @param [in,out] jobs   Pointer to array of IMB_JOB structures
+ * @param [in] n_jobs     Number of jobs to process
+ * @param [in] cipher_mode     Cipher algorithm of type #IMB_CIPHER_MODE
+ * @param [in] cipher_direction        Cipher direction of type #IMB_CIPHER_DIRECTION
+ * @param [in] key_size   Key size in bytes of type #IMB_KEY_SIZE_BYTES
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  *
  * @return Number of completed jobs
  */
-#define IMB_SUBMIT_AEAD_BURST(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)                      \
-        ((_mgr)->submit_aead_burst((_mgr), (_jobs), (_n_jobs), (_cipher), (_dir), (_key_size)))
+IMB_DLL_EXPORT uint32_t
+imb_submit_aead_burst(IMB_MGR *state, IMB_JOB *jobs, const uint32_t n_jobs,
+                      const IMB_CIPHER_MODE cipher_mode,
+                      const IMB_CIPHER_DIRECTION cipher_direction,
+                      const IMB_KEY_SIZE_BYTES key_size);
+
 /**
  * Submit multiple cipher jobs to be processed synchronously without validating.
  *
  * This is more performant but less secure than IMB_SUBMIT_AEAD_BURST().
  *
- * @param [in] _mgr        Pointer to initialized IMB_MGR structure
- * @param [in,out] _jobs   Pointer to array of IMB_JOB structures
- * @param [in] _n_jobs     Number of jobs to process
- * @param [in] _cipher     Cipher algorithm of type #IMB_CIPHER_MODE
- * @param [in] _dir        Cipher direction of type #IMB_CIPHER_DIRECTION
- * @param [in] _key_size   Key size in bytes of type #IMB_KEY_SIZE_BYTES
+ * @param [in,out] jobs   Pointer to array of IMB_JOB structures
+ * @param [in] n_jobs     Number of jobs to process
+ * @param [in] cipher_mode     Cipher algorithm of type #IMB_CIPHER_MODE
+ * @param [in] cipher_direction        Cipher direction of type #IMB_CIPHER_DIRECTION
+ * @param [in] key_size   Key size in bytes of type #IMB_KEY_SIZE_BYTES
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  *
  * @return Number of completed jobs
  */
-#define IMB_SUBMIT_AEAD_BURST_NOCHECK(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)              \
-        ((_mgr)->submit_aead_burst_nocheck((_mgr), (_jobs), (_n_jobs), (_cipher), (_dir),          \
-                                           (_key_size)))
+IMB_DLL_EXPORT uint32_t
+imb_submit_aead_burst_nocheck(IMB_MGR *state, IMB_JOB *jobs, const uint32_t n_jobs,
+                              const IMB_CIPHER_MODE cipher_mode,
+                              const IMB_CIPHER_DIRECTION cipher_direction,
+                              const IMB_KEY_SIZE_BYTES key_size);
 
-/* Key expansion and generation API's */
+/*
+ * =========================================================
+ * =========================================================
+ * AES
+ * =========================================================
+ */
 
 /**
  * Generate encryption/decryption AES-128 expansion keys.
  *
- * @param[in] _mgr          Pointer to multi-buffer structure
- * @param[in] _key          AES-128 key
- * @param[out] _enc_exp_key AES-128 encryption expansion key
- * @param[out] _dec_exp_key AES-128 decryption expansion key
+ * @param [in] key          AES-128 key
+ * @param [out] enc_exp_keys AES-128 encryption expansion key
+ * @param [out] dec_exp_keys AES-128 decryption expansion key
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_AES_KEYEXP_128(_mgr, _key, _enc_exp_key, _dec_exp_key)                                 \
-        ((_mgr)->keyexp_128((_key), (_enc_exp_key), (_dec_exp_key)))
+IMB_DLL_EXPORT void
+imb_aes_keyexp_128(const void *key, void *enc_exp_keys, void *dec_exp_keys, IMB_MGR *state);
+
 /**
  * Generate encryption/decryption AES-192 expansion keys.
  *
- * @param[in] _mgr          Pointer to multi-buffer structure
- * @param[in] _key          AES-192 key
- * @param[out] _enc_exp_key AES-192 encryption expansion key
- * @param[out] _dec_exp_key AES-192 decryption expansion key
+ * @param [in] key          AES-192 key
+ * @param [out] enc_exp_keys AES-192 encryption expansion key
+ * @param [out] dec_exp_keys AES-192 decryption expansion key
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_AES_KEYEXP_192(_mgr, _key, _enc_exp_key, _dec_exp_key)                                 \
-        ((_mgr)->keyexp_192((_key), (_enc_exp_key), (_dec_exp_key)))
+IMB_DLL_EXPORT void
+imb_aes_keyexp_192(const void *key, void *enc_exp_keys, void *dec_exp_keys, IMB_MGR *state);
+
 /**
  * Generate encryption/decryption AES-256 expansion keys.
  *
- * @param[in] _mgr          Pointer to multi-buffer structure
- * @param[in] _key          AES-256 key
- * @param[out] _enc_exp_key AES-256 encryption expansion key
- * @param[out] _dec_exp_key AES-256 decryption expansion key
+ * @param [in] key          AES-256 key
+ * @param [out] enc_exp_keys AES-256 encryption expansion key
+ * @param [out] dec_exp_keys AES-256 decryption expansion key
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_AES_KEYEXP_256(_mgr, _key, _enc_exp_key, _dec_exp_key)                                 \
-        ((_mgr)->keyexp_256((_key), (_enc_exp_key), (_dec_exp_key)))
+IMB_DLL_EXPORT void
+imb_aes_keyexp_256(const void *key, void *enc_exp_keys, void *dec_exp_keys, IMB_MGR *state);
 
 /**
  * Generate AES-128-CMAC subkeys.
  *
- * @param[in] _mgr         Pointer to multi-buffer structure
- * @param[in] _exp_key     Input expanded AES-128-CMAC key
- * @param[out] _key1       Subkey 1
- * @param[out] _key2       Subkey 2
+ * @param [in] enc_exp_key     Input expanded AES-128-CMAC key
+ * @param [out] key1       Subkey 1
+ * @param [out] key2       Subkey 2
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_AES_CMAC_SUBKEY_GEN_128(_mgr, _exp_key, _key1, _key2)                                  \
-        ((_mgr)->cmac_subkey_gen_128((_exp_key), (_key1), (_key2)))
+IMB_DLL_EXPORT void
+imb_aes_cmac_subkey_gen_128(const void *enc_exp_key, void *key1, void *key2, IMB_MGR *state);
 
 /**
  * Generate AES-256-CMAC subkeys.
  *
- * @param[in] _mgr         Pointer to multi-buffer structure
- * @param[in] _exp_key     Input expanded AES-256-CMAC key
- * @param[out] _key1       Subkey 1
- * @param[out] _key2       Subkey 2
+ * @param [in] enc_exp_key     Input expanded AES-256-CMAC key
+ * @param [out] key1       Subkey 1
+ * @param [out] key2       Subkey 2
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_AES_CMAC_SUBKEY_GEN_256(_mgr, _exp_key, _key1, _key2)                                  \
-        ((_mgr)->cmac_subkey_gen_256((_exp_key), (_key1), (_key2)))
+IMB_DLL_EXPORT void
+imb_aes_cmac_subkey_gen_256(const void *enc_exp_key, void *key1, void *key2, IMB_MGR *state);
 
 /**
  * Generate AES-128-XCBC expansion keys.
  *
- * @param[in] _mgr         Pointer to multi-buffer structure
- * @param[in] _key         AES-128-XCBC key
- * @param[out] _exp_key    k1 expansion key
- * @param[out] _exp_key2   k2 expansion key
- * @param[out] _exp_key3   k3 expansion key
+ * @param [in] key         AES-128-XCBC key
+ * @param [out] exp_key1    k1 expansion key
+ * @param [out] exp_key2   k2 expansion key
+ * @param [out] exp_key3   k3 expansion key
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_AES_XCBC_KEYEXP(_mgr, _key, _exp_key, _exp_key2, _exp_key3)                            \
-        ((_mgr)->xcbc_keyexp((_key), (_exp_key), (_exp_key2), (_exp_key3)))
+IMB_DLL_EXPORT void
+imb_aes_xcbc_keyexp(const void *key, void *exp_key1, void *exp_key2, void *exp_key3,
+                    IMB_MGR *state);
 
-/**
- * Generate DES key schedule
- *
- * @param[in] _mgr         Pointer to multi-buffer structure
- * @param[out] _exp_key    DES key schedule
- * @param[in] _key         input key
+/*
+ * =========================================================
+ * =========================================================
+ * SHA1
+ * =========================================================
  */
-#define IMB_DES_KEYSCHED(_mgr, _exp_key, _key) ((_mgr)->des_key_sched((_exp_key), (_key)))
-
-/* Hash API's */
 
 /**
  * Authenticate 64-byte data buffer with SHA1.
  *
- * @param[in] _mgr    Pointer to multi-buffer structure
- * @param[in] _src    64-byte data buffer
- * @param[out] _tag   Digest output (20 bytes)
+ * @param [in] src    64-byte data buffer
+ * @param [out] digest   Digest output (20 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SHA1_ONE_BLOCK(_mgr, _src, _tag) ((_mgr)->sha1_one_block((_src), (_tag)))
+IMB_DLL_EXPORT void
+imb_sha1_one_block(const void *src, void *digest, IMB_MGR *state);
 
 /**
  * Authenticate variable sized data with SHA1.
  *
- * @param[in] _mgr    Pointer to multi-buffer structure
- * @param[in] _src    Data buffer
- * @param[in] _length Length of data in bytes for authentication.
- * @param[out] _tag   Digest output (20 bytes)
+ * @param [in] src    Data buffer
+ * @param [in] length Length of data in bytes for authentication.
+ * @param [out] digest   Digest output (20 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SHA1(_mgr, _src, _length, _tag) ((_mgr)->sha1((_src), (_length), (_tag)))
+IMB_DLL_EXPORT void
+imb_sha1(const void *src, const uint64_t length, void *digest, IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * SHA2-256
+ * =========================================================
+ */
+
 /**
  * Authenticate 64-byte data buffer with SHA224.
  *
@@ -1849,38 +1517,52 @@ init_mb_mgr_auto(IMB_MGR *state, IMB_ARCH *arch);
  *       This is needed for HMAC IPAD and OPAD computation
  *       where full 8 word digest is required.
  *
- * @param[in] _mgr    Pointer to multi-buffer structure
- * @param[in] _src    64-byte data buffer
- * @param[out] _tag   Digest output (32 bytes)
+ * @param [in] src    64-byte data buffer
+ * @param [out] digest   Digest output (32 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SHA224_ONE_BLOCK(_mgr, _src, _tag) ((_mgr)->sha224_one_block((_src), (_tag)))
+IMB_DLL_EXPORT void
+imb_sha224_one_block(const void *src, void *digest, IMB_MGR *state);
 
 /**
  * Authenticate variable sized data with SHA224.
  *
- * @param[in] _mgr    Pointer to multi-buffer structure
- * @param[in] _src    Data buffer
- * @param[in] _length Length of data in bytes for authentication.
- * @param[out] _tag   Digest output (28 bytes)
+ * @param [in] src    Data buffer
+ * @param [in] length Length of data in bytes for authentication.
+ * @param [out] digest   Digest output (28 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SHA224(_mgr, _src, _length, _tag) ((_mgr)->sha224((_src), (_length), (_tag)))
+IMB_DLL_EXPORT void
+imb_sha224(const void *src, const uint64_t length, void *digest, IMB_MGR *state);
+
 /**
  * Authenticate 64-byte data buffer with SHA256.
  *
- * @param[in] _mgr    Pointer to multi-buffer structure
- * @param[in] _src    64-byte data buffer
- * @param[out] _tag   Digest output (32 bytes)
+ * @param [in] src    64-byte data buffer
+ * @param [out] digest   Digest output (32 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SHA256_ONE_BLOCK(_mgr, _src, _tag) ((_mgr)->sha256_one_block((_src), (_tag)))
+IMB_DLL_EXPORT void
+imb_sha256_one_block(const void *src, void *digest, IMB_MGR *state);
+
 /**
  * Authenticate variable sized data with SHA256.
  *
- * @param[in] _mgr    Pointer to multi-buffer structure
- * @param[in] _src    Data buffer
- * @param[in] _length Length of data in bytes for authentication.
- * @param[out] _tag   Digest output (32 bytes)
+ * @param [in] src    Data buffer
+ * @param [in] length Length of data in bytes for authentication.
+ * @param [out] digest   Digest output (32 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SHA256(_mgr, _src, _length, _tag) ((_mgr)->sha256((_src), (_length), (_tag)))
+IMB_DLL_EXPORT void
+imb_sha256(const void *src, const uint64_t length, void *digest, IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * SHA2-512
+ * =========================================================
+ */
+
 /**
  * Authenticate 128-byte data buffer with SHA384.
  *
@@ -1888,45 +1570,68 @@ init_mb_mgr_auto(IMB_MGR *state, IMB_ARCH *arch);
  *       This is needed for HMAC IPAD and OPAD computation
  *       where full 8 word digest is required.
  *
- * @param[in] _mgr    Pointer to multi-buffer structure
- * @param[in] _src    128-byte data buffer
- * @param[out] _tag   Digest output (64 bytes)
+ * @param [in] src    128-byte data buffer
+ * @param [out] digest   Digest output (64 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SHA384_ONE_BLOCK(_mgr, _src, _tag) ((_mgr)->sha384_one_block((_src), (_tag)))
+IMB_DLL_EXPORT void
+imb_sha384_one_block(const void *src, void *digest, IMB_MGR *state);
+
 /**
  * Authenticate variable sized data with SHA384.
  *
- * @param[in] _mgr    Pointer to multi-buffer structure
- * @param[in] _src    Data buffer
- * @param[in] _length Length of data in bytes for authentication.
- * @param[out] _tag   Digest output (48 bytes)
+ * @param [in] src    Data buffer
+ * @param [in] length Length of data in bytes for authentication.
+ * @param [out] digest   Digest output (48 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SHA384(_mgr, _src, _length, _tag) ((_mgr)->sha384((_src), (_length), (_tag)))
+IMB_DLL_EXPORT void
+imb_sha384(const void *src, const uint64_t length, void *digest, IMB_MGR *state);
+
 /**
  * Authenticate 128-byte data buffer with SHA512.
  *
- * @param[in] _mgr    Pointer to multi-buffer structure
- * @param[in] _src    128-byte data buffer
- * @param[out] _tag   Digest output (64 bytes)
+ * @param [in] src    128-byte data buffer
+ * @param [out] digest   Digest output (64 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SHA512_ONE_BLOCK(_mgr, _src, _tag) ((_mgr)->sha512_one_block((_src), (_tag)))
+IMB_DLL_EXPORT void
+imb_sha512_one_block(const void *src, void *digest, IMB_MGR *state);
+
 /**
  * Authenticate variable sized data with SHA512.
  *
- * @param[in] _mgr    Pointer to multi-buffer structure
- * @param[in] _src    Data buffer
- * @param[in] _length Length of data in bytes for authentication.
- * @param[out] _tag   Digest output (20 bytes)
+ * @param [in] src    Data buffer
+ * @param [in] length Length of data in bytes for authentication.
+ * @param [out] digest   Digest output (20 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SHA512(_mgr, _src, _length, _tag) ((_mgr)->sha512((_src), (_length), (_tag)))
+IMB_DLL_EXPORT void
+imb_sha512(const void *src, const uint64_t length, void *digest, IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * MD5
+ * =========================================================
+ */
+
 /**
  * Authenticate 64-byte data buffer with MD5.
  *
- * @param[in] _mgr    Pointer to multi-buffer structure
- * @param[in] _src    64-byte data buffer
- * @param[out] _tag   Digest output (16 bytes)
+ * @param [in] src    64-byte data buffer
+ * @param [out] digest   Digest output (16 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_MD5_ONE_BLOCK(_mgr, _src, _tag) ((_mgr)->md5_one_block((_src), (_tag)))
+IMB_DLL_EXPORT void
+imb_md5_one_block(const void *src, void *digest, IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * AES-CFB
+ * =========================================================
+ */
 
 /**
  * @brief AES-CFB-128 Encrypt/Decrypt up to one block.
@@ -1934,15 +1639,16 @@ init_mb_mgr_auto(IMB_MGR *state, IMB_ARCH *arch);
  * Processes only one buffer at a time.
  * Designed to manage partial blocks of DOCSIS 3.1 SEC BPI.
  *
- * @param [in] _mgr     Pointer to multi-buffer structure
- * @param [out] _dst    Plaintext/Ciphertext output
- * @param [in] _src     Plaintext/Ciphertext input
- * @param [in] _iv      Pointer to 16 byte IV
- * @param [in] _exp_key Pointer to expanded AES keys
- * @param [in] _len     Length of data in bytes
+ * @param [out] dst    Plain/cipher text output
+ * @param [in] src     Plain/cipher text input
+ * @param [in] iv      Pointer to 16 byte IV
+ * @param [in] exp_key Pointer to expanded AES keys
+ * @param [in] len     Length of data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_AES128_CFB_ONE(_mgr, _dst, _src, _iv, _exp_key, _len)                                  \
-        ((_mgr)->aes128_cfb_one((_dst), (_src), (_iv), (_exp_key), (_len)))
+IMB_DLL_EXPORT void
+imb_aes128_cfb_one(void *dst, const void *src, const void *iv, const void *exp_key, uint64_t len,
+                   IMB_MGR *state);
 
 /**
  * @brief AES-CFB-256 Encrypt/Decrypt up to one block.
@@ -1950,587 +1656,264 @@ init_mb_mgr_auto(IMB_MGR *state, IMB_ARCH *arch);
  * Processes only one buffer at a time.
  * Designed to manage partial blocks of DOCSIS 3.1 SEC BPI.
  *
- * @param [in] _mgr     Pointer to multi-buffer structure
- * @param [out] _dst    Plaintext/Ciphertext output
- * @param [in] _src     Plaintext/Ciphertext input
- * @param [in] _iv      Pointer to 16 byte IV
- * @param [in] _exp_key Pointer to expanded AES keys
- * @param [in] _len     Length of data in bytes
+ * @param [out] dst    Plain/cipher text output
+ * @param [in] src     Plain/cipher text input
+ * @param [in] iv      Pointer to 16 byte IV
+ * @param [in] exp_key Pointer to expanded AES keys
+ * @param [in] len     Length of data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_AES256_CFB_ONE(_mgr, _dst, _src, _iv, _exp_key, _len)                                  \
-        ((_mgr)->aes256_cfb_one((_dst), (_src), (_iv), (_exp_key), (_len)))
+IMB_DLL_EXPORT void
+imb_aes256_cfb_one(void *dst, const void *src, const void *iv, const void *exp_key, uint64_t len,
+                   IMB_MGR *state);
 
-/* AES-GCM API's */
-#define IMB_AES128_GCM_ENC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
-        ((_mgr)->gcm128_enc((_exp_key), (_ctx), (_dst), (_src), (_len), (_iv), (_aad), (_aadl),    \
-                            (_tag), (_tagl)))
-#define IMB_AES192_GCM_ENC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
-        ((_mgr)->gcm192_enc((_exp_key), (_ctx), (_dst), (_src), (_len), (_iv), (_aad), (_aadl),    \
-                            (_tag), (_tagl)))
-#define IMB_AES256_GCM_ENC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
-        ((_mgr)->gcm256_enc((_exp_key), (_ctx), (_dst), (_src), (_len), (_iv), (_aad), (_aadl),    \
-                            (_tag), (_tagl)))
-
-#define IMB_AES128_GCM_DEC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
-        ((_mgr)->gcm128_dec((_exp_key), (_ctx), (_dst), (_src), (_len), (_iv), (_aad), (_aadl),    \
-                            (_tag), (_tagl)))
-#define IMB_AES192_GCM_DEC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
-        ((_mgr)->gcm192_dec((_exp_key), (_ctx), (_dst), (_src), (_len), (_iv), (_aad), (_aadl),    \
-                            (_tag), (_tagl)))
-#define IMB_AES256_GCM_DEC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
-        ((_mgr)->gcm256_dec((_exp_key), (_ctx), (_dst), (_src), (_len), (_iv), (_aad), (_aadl),    \
-                            (_tag), (_tagl)))
-
-#define IMB_AES128_GCM_INIT(_mgr, _exp_key, _ctx, _iv, _aad, _aadl)                                \
-        ((_mgr)->gcm128_init((_exp_key), (_ctx), (_iv), (_aad), (_aadl)))
-#define IMB_AES192_GCM_INIT(_mgr, _exp_key, _ctx, _iv, _aad, _aadl)                                \
-        ((_mgr)->gcm192_init((_exp_key), (_ctx), (_iv), (_aad), (_aadl)))
-#define IMB_AES256_GCM_INIT(_mgr, _exp_key, _ctx, _iv, _aad, _aadl)                                \
-        ((_mgr)->gcm256_init((_exp_key), (_ctx), (_iv), (_aad), (_aadl)))
-
-#define IMB_AES128_GCM_INIT_VAR_IV(_mgr, _exp_key, _ctx, _iv, _ivl, _aad, _aadl)                   \
-        ((_mgr)->gcm128_init_var_iv((_exp_key), (_ctx), (_iv), (_ivl), (_aad), (_aadl)))
-#define IMB_AES192_GCM_INIT_VAR_IV(_mgr, _exp_key, _ctx, _iv, _ivl, _aad, _aadl)                   \
-        ((_mgr)->gcm192_init_var_iv((_exp_key), (_ctx), (_iv), (_ivl), (_aad), (_aadl)))
-#define IMB_AES256_GCM_INIT_VAR_IV(_mgr, _exp_key, _ctx, _iv, _ivl, _aad, _aadl)                   \
-        ((_mgr)->gcm256_init_var_iv((_exp_key), (_ctx), (_iv), (_ivl), (_aad), (_aadl)))
-
-#define IMB_AES128_GCM_ENC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
-        ((_mgr)->gcm128_enc_update((_exp_key), (_ctx), (_dst), (_src), (_len)))
-#define IMB_AES192_GCM_ENC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
-        ((_mgr)->gcm192_enc_update((_exp_key), (_ctx), (_dst), (_src), (_len)))
-#define IMB_AES256_GCM_ENC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
-        ((_mgr)->gcm256_enc_update((_exp_key), (_ctx), (_dst), (_src), (_len)))
-
-#define IMB_AES128_GCM_DEC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
-        ((_mgr)->gcm128_dec_update((_exp_key), (_ctx), (_dst), (_src), (_len)))
-#define IMB_AES192_GCM_DEC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
-        ((_mgr)->gcm192_dec_update((_exp_key), (_ctx), (_dst), (_src), (_len)))
-#define IMB_AES256_GCM_DEC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
-        ((_mgr)->gcm256_dec_update((_exp_key), (_ctx), (_dst), (_src), (_len)))
-
-#define IMB_AES128_GCM_ENC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
-        ((_mgr)->gcm128_enc_finalize((_exp_key), (_ctx), (_tag), (_tagl)))
-#define IMB_AES192_GCM_ENC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
-        ((_mgr)->gcm192_enc_finalize((_exp_key), (_ctx), (_tag), (_tagl)))
-#define IMB_AES256_GCM_ENC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
-        ((_mgr)->gcm256_enc_finalize((_exp_key), (_ctx), (_tag), (_tagl)))
-
-#define IMB_AES128_GCM_DEC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
-        ((_mgr)->gcm128_dec_finalize((_exp_key), (_ctx), (_tag), (_tagl)))
-#define IMB_AES192_GCM_DEC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
-        ((_mgr)->gcm192_dec_finalize((_exp_key), (_ctx), (_tag), (_tagl)))
-#define IMB_AES256_GCM_DEC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
-        ((_mgr)->gcm256_dec_finalize((_exp_key), (_ctx), (_tag), (_tagl)))
-
-#define IMB_AES128_GMAC_INIT(_mgr, _exp_key, _ctx, _iv, _ivl)                                      \
-        ((_mgr)->gmac128_init((_exp_key), (_ctx), (_iv), (_ivl)))
-#define IMB_AES192_GMAC_INIT(_mgr, _exp_key, _ctx, _iv, _ivl)                                      \
-        ((_mgr)->gmac192_init((_exp_key), (_ctx), (_iv), (_ivl)))
-#define IMB_AES256_GMAC_INIT(_mgr, _exp_key, _ctx, _iv, _ivl)                                      \
-        ((_mgr)->gmac256_init((_exp_key), (_ctx), (_iv), (_ivl)))
-
-#define IMB_AES128_GMAC_UPDATE(_mgr, _exp_key, _ctx, _src, _len)                                   \
-        ((_mgr)->gmac128_update((_exp_key), (_ctx), (_src), (_len)))
-#define IMB_AES192_GMAC_UPDATE(_mgr, _exp_key, _ctx, _src, _len)                                   \
-        ((_mgr)->gmac192_update((_exp_key), (_ctx), (_src), (_len)))
-#define IMB_AES256_GMAC_UPDATE(_mgr, _exp_key, _ctx, _src, _len)                                   \
-        ((_mgr)->gmac256_update((_exp_key), (_ctx), (_src), (_len)))
-
-#define IMB_AES128_GMAC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                                \
-        ((_mgr)->gmac128_finalize((_exp_key), (_ctx), (_tag), (_tagl)))
-#define IMB_AES192_GMAC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                                \
-        ((_mgr)->gmac192_finalize((_exp_key), (_ctx), (_tag), (_tagl)))
-#define IMB_AES256_GMAC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                                \
-        ((_mgr)->gmac256_finalize((_exp_key), (_ctx), (_tag), (_tagl)))
-
-#define IMB_AES128_GCM_PRECOMP(_mgr, _key) ((_mgr)->gcm128_precomp((_key)))
-#define IMB_AES192_GCM_PRECOMP(_mgr, _key) ((_mgr)->gcm192_precomp((_key)))
-#define IMB_AES256_GCM_PRECOMP(_mgr, _key) ((_mgr)->gcm256_precomp((_key)))
-
-#define IMB_AES128_GCM_PRE(_mgr, _key, _exp_key) ((_mgr)->gcm128_pre((_key), (_exp_key)))
-#define IMB_AES192_GCM_PRE(_mgr, _key, _exp_key) ((_mgr)->gcm192_pre((_key), (_exp_key)))
-#define IMB_AES256_GCM_PRE(_mgr, _key, _exp_key) ((_mgr)->gcm256_pre((_key), (_exp_key)))
-
-#define IMB_GHASH_PRE(_mgr, _key, _exp_key) ((_mgr)->ghash_pre((_key), (_exp_key)))
-#define IMB_GHASH(_mgr, _exp_key, _src, _len, _tag, _tagl)                                         \
-        ((_mgr)->ghash((_exp_key), (_src), (_len), (_tag), (_tagl)))
-
-/* Chacha20-Poly1305 direct API's */
-#define IMB_CHACHA20_POLY1305_INIT(_mgr, _key, _ctx, _iv, _aad, _aadl)                             \
-        ((_mgr)->chacha20_poly1305_init((_key), (_ctx), (_iv), (_aad), (_aadl)))
-
-#define IMB_CHACHA20_POLY1305_ENC_UPDATE(_mgr, _key, _ctx, _dst, _src, _len)                       \
-        ((_mgr)->chacha20_poly1305_enc_update((_key), (_ctx), (_dst), (_src), (_len)))
-#define IMB_CHACHA20_POLY1305_DEC_UPDATE(_mgr, _key, _ctx, _dst, _src, _len)                       \
-        ((_mgr)->chacha20_poly1305_dec_update((_key), (_ctx), (_dst), (_src), (_len)))
-
-#define IMB_CHACHA20_POLY1305_ENC_FINALIZE(_mgr, _ctx, _tag, _tagl)                                \
-        ((_mgr)->chacha20_poly1305_finalize((_ctx), (_tag), (_tagl)))
-
-#define IMB_CHACHA20_POLY1305_DEC_FINALIZE(_mgr, _ctx, _tag, _tagl)                                \
-        ((_mgr)->chacha20_poly1305_finalize((_ctx), (_tag), (_tagl)))
-
-/* ZUC EEA3/EIA3 functions */
-
-/**
- * @brief ZUC EEA3 Confidentiality function
- *
- * @param _mgr   Pointer to multi-buffer structure
- * @param _key   Pointer to key
- * @param _iv    Pointer to 16-byte IV
- * @param _src   Pointer to Plaintext/Ciphertext input.
- * @param _dst   Pointer to Ciphertext/Plaintext output.
- * @param _len   Length of input data in bytes.
- *
- * @deprecated Please use the job API instead.
- *
- * This function submits and flushes jobs internally using the job API.
- * Do not mix calls to this function with other job API calls
- * (IMB_GET_NEXT_JOB / IMB_SUBMIT_JOB / IMB_FLUSH_JOB) on the same
- * IMB_MGR. Mixing may cause in-flight jobs submitted via the job API
- * to be returned to the wrong caller or silently lost.
+/*
+ * =========================================================
+ * =========================================================
+ * CHACHA20-POLY1305
+ * =========================================================
  */
-#define IMB_ZUC_EEA3_N_BUFFER(_mgr, _key, _iv, _src, _dst, _len, _count)                           \
-        ((_mgr)->eea3_n_buffer((_mgr), (_key), (_iv), (_src), (_dst), (_len), (_count)))
 
 /**
- * @brief ZUC EIA3 Integrity function
+ * @brief Initialize a chacha20_poly1305_context_data structure to prepare for
+ *        ChaCha20-Poly1305 Encryption or Decryption.
  *
- * @param _mgr   Pointer to multi-buffer structure
- * @param _key   Pointer to key
- * @param _iv    Pointer to 16-byte IV
- * @param _src   Pointer to Plaintext/Ciphertext input.
- * @param _len   Length of input data in bits.
- * @param _tag   Pointer to Authenticated Tag output (4 bytes)
- *
- * @deprecated Please use the job API instead.
- *
- * This function submits and flushes jobs internally using the job API.
- * Do not mix calls to this function with other job API calls
- * (IMB_GET_NEXT_JOB / IMB_SUBMIT_JOB / IMB_FLUSH_JOB) on the same
- * IMB_MGR. Mixing may cause in-flight jobs submitted via the job API
- * to be returned to the wrong caller or silently lost.
+ * @param [in] key          Pointer to 256-bit key
+ * @param [in,out] ctx      ChaCha20-Poly1305 operation context data
+ * @param [in] iv           Pointer to 12 byte IV
+ * @param [in] aad          Additional Authenticated Data (AAD)
+ * @param [in] aadl         Length of AAD in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_ZUC_EIA3_N_BUFFER(_mgr, _key, _iv, _src, _len, _tag, _count)                           \
-        ((_mgr)->eia3_n_buffer((_mgr), (_key), (_iv), (_src), (_len), (_tag), (_count)))
-
-/* KASUMI F8/F9 functions */
-
-/**
- * @brief Kasumi byte-level f8 operation on a single buffer
- *
- * This function performs kasumi f8 operation on a single buffer. The key has
- * already been scheduled with kasumi_init_f8_key_sched().
- * No extra bits are modified.
- *
- * @param [in]  _mgr      Pointer to multi-buffer structure
- * @param [in]  _exp_key  Context where the scheduled keys are stored
- * @param [in]  _iv       Initialization vector
- * @param [in]  _src      Input buffer
- * @param [out] _dst      Output buffer
- * @param [in]  _len      Length in BYTES
- *
- * @deprecated Please use the job API instead.
- *
- ******************************************************************************/
-#define IMB_KASUMI_F8_1_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len)                              \
-        ((_mgr)->f8_1_buffer((_exp_key), (_iv), (_src), (_dst), (_len)))
+IMB_DLL_EXPORT void
+imb_chacha20_poly1305_init(const void *key, struct chacha20_poly1305_context_data *ctx,
+                           const void *iv, const void *aad, const uint64_t aadl, IMB_MGR *state);
 
 /**
- * @brief Kasumi bit-level f9 operation on a single buffer.
+ * @brief Encrypt and authenticate data for ChaCha20-Poly1305.
  *
- * The first QWORD of in represents the COUNT and FRESH, the last QWORD
- * represents the DIRECTION and PADDING. (See 3GPP TS 35.201 v10.0 section 4)
- *
- * The key has already been scheduled with kasumi_init_f9_key_sched().
- *
- * @param [in]  _mgr     Pointer to multi-buffer structure
- * @param [in]  _exp_key Context where the scheduled keys are stored
- * @param [in]  _src     Input buffer
- * @param [in]  _len     Length in BYTES of the data to be hashed
- * @param [out] _tag     Computed digest
- *
- * @deprecated Please use the job API instead.
- *
+ * @param [in] key          Pointer to 256-bit key
+ * @param [in,out] ctx      ChaCha20-Poly1305 operation context data
+ * @param [out] dst         Ciphertext output. Encrypt in-place is allowed
+ * @param [in] src          Plaintext input
+ * @param [in] len          Length of data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_KASUMI_F9_1_BUFFER(_mgr, _exp_key, _src, _len, _tag)                                   \
-        ((_mgr)->f9_1_buffer((_exp_key), (_src), (_len), (_tag)))
+IMB_DLL_EXPORT void
+imb_chacha20_poly1305_enc_update(const void *key, struct chacha20_poly1305_context_data *ctx,
+                                 void *dst, const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
- * KASUMI F8 key schedule init function.
+ * @brief Decrypt and authenticate data for ChaCha20-Poly1305.
  *
- * @param[in]  _mgr      Pointer to multi-buffer structure
- * @param[in]  _key      Confidentiality key (expected in LE format)
- * @param[out] _exp_key  Key schedule context to be initialised
- * @return 0 on success, -1 on failure
- *
- ******************************************************************************/
-#define IMB_KASUMI_INIT_F8_KEY_SCHED(_mgr, _key, _exp_key)                                         \
-        ((_mgr)->kasumi_init_f8_key_sched((_key), (_exp_key)))
-
-/**
- * KASUMI F9 key schedule init function.
- *
- * @param[in]  _mgr      Pointer to multi-buffer structure
- * @param[in]  _key      Integrity key (expected in LE format)
- * @param[out] _exp_key  Key schedule context to be initialised
- * @return 0 on success, -1 on failure
- *
- ******************************************************************************/
-#define IMB_KASUMI_INIT_F9_KEY_SCHED(_mgr, _key, _exp_key)                                         \
-        ((_mgr)->kasumi_init_f9_key_sched((_key), (_exp_key)))
-
-/**
- *******************************************************************************
- * This function returns the size of the kasumi_key_sched_t, used
- * to store the key schedule.
- *
- * @param[in]  _mgr      Pointer to multi-buffer structure
- * @return size of kasumi_key_sched_t type success
- *
- ******************************************************************************/
-#define IMB_KASUMI_KEY_SCHED_SIZE(_mgr) ((_mgr)->kasumi_key_sched_size())
-
-/* SNOW3G F8/F9 functions */
-
-/**
- * This function performs snow3g f8 operation on a single buffer. The key has
- * already been scheduled with snow3g_init_key_sched().
- *
- * @param[in]  _mgr          Pointer to multi-buffer structure
- * @param[in]  _exp_key      Context where the scheduled keys are stored
- * @param[in]  _iv           iv[3] = count
- *                           iv[2] = (bearer << 27) | ((dir & 0x1) << 26)
- *                           iv[1] = pIV[3]
- *                           iv[0] = pIV[2]
- * @param[in]  _src          Input buffer
- * @param[out] _dst          Output buffer
- * @param[in]  _len          Length in bits of input buffer
- * @param[in]  _offset       Offset in input/output buffer (in bits)
- *
- * @deprecated Please use the job API instead.
+ * @param [in] key          Pointer to 256-bit key
+ * @param [in,out] ctx      ChaCha20-Poly1305 operation context data
+ * @param [out] dst         Plaintext output. Decrypt in-place is allowed
+ * @param [in] src          Ciphertext input
+ * @param [in] len          Length of data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SNOW3G_F8_1_BUFFER_BIT(_mgr, _exp_key, _iv, _src, _dst, _len, _offset)                 \
-        ((_mgr)->snow3g_f8_1_buffer_bit((_exp_key), (_iv), (_src), (_dst), (_len), (_offset)))
+IMB_DLL_EXPORT void
+imb_chacha20_poly1305_dec_update(const void *key, struct chacha20_poly1305_context_data *ctx,
+                                 void *dst, const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
- * This function performs snow3g f8 operation on a single buffer. The key has
- * already been scheduled with snow3g_init_key_sched().
+ * @brief Finalize ChaCha20-Poly1305 Encryption and output the authentication tag.
  *
- * @param[in]  _mgr          Pointer to multi-buffer structure
- * @param[in]  _exp_key      Context where the scheduled keys are stored
- * @param[in]  _iv           iv[3] = count
- *                           iv[2] = (bearer << 27) | ((dir & 0x1) << 26)
- *                           iv[1] = pIV[3]
- *                           iv[0] = pIV[2]
- * @param[in]  _src          Input buffer
- * @param[out] _dst          Output buffer
- * @param[in]  _len          Length in bits of input buffer
- *
- * @deprecated Please use the job API instead.
+ * @param [in,out] ctx      ChaCha20-Poly1305 operation context data
+ * @param [out] tag         Authenticated Tag output
+ * @param [in] tagl         Authenticated Tag Length in bytes (must be 16)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SNOW3G_F8_1_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len)                              \
-        ((_mgr)->snow3g_f8_1_buffer((_exp_key), (_iv), (_src), (_dst), (_len)))
+IMB_DLL_EXPORT void
+imb_chacha20_poly1305_enc_finalize(struct chacha20_poly1305_context_data *ctx, void *tag,
+                                   const uint64_t tagl, IMB_MGR *state);
 
 /**
- * This function performs snow3g f8 operation on two buffers. They will
- * be processed with the same key, which has already been scheduled with
- * snow3g_init_key_sched().
+ * @brief Finalize ChaCha20-Poly1305 Decryption and output the authentication tag.
  *
- * @param[in]  _mgr           Pointer to multi-buffer structure
- * @param[in]  _exp_key       Context where the scheduled keys are stored
- * @param[in]  _iv1           IV to use for buffer pBufferIn1
- * @param[in]  _iv2           IV to use for buffer pBufferIn2
- * @param[in]  _src1          Input buffer 1
- * @param[out] _dst1          Output buffer 1
- * @param[in]  _len1          Length in bytes of input buffer 1
- * @param[in]  _src2          Input buffer 2
- * @param[out] _dst2          Output buffer 2
- * @param[in]  _len2          Length in bytes of input buffer 2
- *
- * @deprecated Please use the job API instead.
+ * @param [in,out] ctx      ChaCha20-Poly1305 operation context data
+ * @param [out] tag         Authenticated Tag output
+ * @param [in] tagl         Authenticated Tag Length in bytes (must be 16)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SNOW3G_F8_2_BUFFER(_mgr, _exp_key, _iv1, _iv2, _src1, _dst1, _len1, _src2, _dst2,      \
-                               _len2)                                                              \
-        ((_mgr)->snow3g_f8_2_buffer((_exp_key), (_iv1), (_iv2), (_src1), (_dst1), (_len1),         \
-                                    (_src2), (_dst2), (_len2)))
+IMB_DLL_EXPORT void
+imb_chacha20_poly1305_dec_finalize(struct chacha20_poly1305_context_data *ctx, void *tag,
+                                   const uint64_t tagl, IMB_MGR *state);
 
-/**
- *******************************************************************************
- * This function performs snow3g f8 operation on four buffers. They will
- * be processed with the same key, which has already been scheduled with
- * snow3g_init_key_sched().
- *
- * @param[in]  _mgr           Pointer to multi-buffer structure
- * @param[in]  _exp_key       Context where the scheduled keys are stored
- * @param[in]  _iv1           IV to use for buffer pBufferIn1
- * @param[in]  _iv2           IV to use for buffer pBufferIn2
- * @param[in]  _iv3           IV to use for buffer pBufferIn3
- * @param[in]  _iv4           IV to use for buffer pBufferIn4
- * @param[in]  _src1          Input buffer 1
- * @param[out] _dst1          Output buffer 1
- * @param[in]  _len1          Length in bytes of input buffer 1
- * @param[in]  _src2          Input buffer 2
- * @param[out] _dst2          Output buffer 2
- * @param[in]  _len2          Length in bytes of input buffer 2
- * @param[in]  _src3          Input buffer 3
- * @param[out] _dst3          Output buffer 3
- * @param[in]  _len3          Length in bytes of input buffer 3
- * @param[in]  _src4          Input buffer 4
- * @param[out] _dst4          Output buffer 4
- * @param[in]  _len4          Length in bytes of input buffer 4
- *
- * @deprecated Please use the job API instead.
+/*
+ * =========================================================
+ * =========================================================
+ * Hybrid Error Coding (HEC)
+ * =========================================================
  */
-#define IMB_SNOW3G_F8_4_BUFFER(_mgr, _exp_key, _iv1, _iv2, _iv3, _iv4, _src1, _dst1, _len1, _src2, \
-                               _dst2, _len2, _src3, _dst3, _len3, _src4, _dst4, _len4)             \
-        ((_mgr)->snow3g_f8_4_buffer((_exp_key), (_iv1), (_iv2), (_iv3), (_iv4), (_src1), (_dst1),  \
-                                    (_len1), (_src2), (_dst2), (_len2), (_src3), (_dst3), (_len3), \
-                                    (_src4), (_dst4), (_len4)))
-
-/**
- *******************************************************************************
- * This function performs snow3g f8 operation on eight buffers. They will
- * be processed with the same key, which has already been scheduled with
- * snow3g_init_key_sched().
- *
- * @param[in]  _mgr           Pointer to multi-buffer structure
- * @param[in]  _exp_key       Context where the scheduled keys are stored
- * @param[in]  _iv1           IV to use for buffer pBufferIn1
- * @param[in]  _iv2           IV to use for buffer pBufferIn2
- * @param[in]  _iv3           IV to use for buffer pBufferIn3
- * @param[in]  _iv4           IV to use for buffer pBufferIn4
- * @param[in]  _iv5           IV to use for buffer pBufferIn5
- * @param[in]  _iv6           IV to use for buffer pBufferIn6
- * @param[in]  _iv7           IV to use for buffer pBufferIn7
- * @param[in]  _iv8           IV to use for buffer pBufferIn8
- * @param[in]  _src1          Input buffer 1
- * @param[out] _dst1          Output buffer 1
- * @param[in]  _len1          Length in bytes of input buffer 1
- * @param[in]  _src2          Input buffer 2
- * @param[out] _dst2          Output buffer 2
- * @param[in]  _len2          Length in bytes of input buffer 2
- * @param[in]  _src3          Input buffer 3
- * @param[out] _dst3          Output buffer 3
- * @param[in]  _len3          Length in bytes of input buffer 3
- * @param[in]  _src4          Input buffer 4
- * @param[out] _dst4          Output buffer 4
- * @param[in]  _len4          Length in bytes of input buffer 4
- * @param[in]  _src5          Input buffer 5
- * @param[out] _dst5          Output buffer 5
- * @param[in]  _len5          Length in bytes of input buffer 5
- * @param[in]  _src6          Input buffer 6
- * @param[out] _dst6          Output buffer 6
- * @param[in]  _len6          Length in bytes of input buffer 6
- * @param[in]  _src7          Input buffer 7
- * @param[out] _dst7          Output buffer 7
- * @param[in]  _len7          Length in bytes of input buffer 7
- * @param[in]  _src8          Input buffer 8
- * @param[out] _dst8          Output buffer 8
- * @param[in]  _len8          Length in bytes of input buffer 8
- *
- * @deprecated Please use the job API instead.
- */
-#define IMB_SNOW3G_F8_8_BUFFER(_mgr, _exp_key, _iv1, _iv2, _iv3, _iv4, _iv5, _iv6, _iv7, _iv8,     \
-                               _src1, _dst1, _len1, _src2, _dst2, _len2, _src3, _dst3, _len3,      \
-                               _src4, _dst4, _len4, _src5, _dst5, _len5, _src6, _dst6, _len6,      \
-                               _src7, _dst7, _len7, _src8, _dst8, _len8)                           \
-        ((_mgr)->snow3g_f8_8_buffer((_exp_key), (_iv1), (_iv2), (_iv3), (_iv4), (_iv5), (_iv6),    \
-                                    (_iv7), (_iv8), (_src1), (_dst1), (_len1), (_src2), (_dst2),   \
-                                    (_len2), (_src3), (_dst3), (_len3), (_src4), (_dst4), (_len4), \
-                                    (_src5), (_dst5), (_len5), (_src6), (_dst6), (_len6), (_src7), \
-                                    (_dst7), (_len7), (_src8), (_dst8), (_len8)))
-/**
- * This function performs snow3g f8 operation on eight buffers. They will
- * be processed with individual keys, which have already been scheduled
- * with snow3g_init_key_sched().
- *
- * @param[in]  _mgr      Pointer to multi-buffer structure
- * @param[in]  _exp_key  Array of 8 Contexts, where the scheduled keys
- * are stored
- * @param[in]  _iv       Array of 8 IV values
- * @param[in]  _src      Array of 8 input buffers
- * @param[out] _dst      Array of 8 output buffers
- * @param[in]  _len      Array of 8 corresponding input buffer lengths
- *
- * @deprecated Please use the job API instead.
- */
-#define IMB_SNOW3G_F8_8_BUFFER_MULTIKEY(_mgr, _exp_key, _iv, _src, _dst, _len)                     \
-        ((_mgr)->snow3g_f8_8_buffer_multikey((_exp_key), (_iv), (_src), (_dst), (_len)))
-
-/**
- * This function performs snow3g f8 operation in parallel on N buffers. All
- * input buffers can have different lengths and they will be processed with the
- * same key, which has already been scheduled with snow3g_init_key_sched().
- *
- * @param[in]  _mgr      Pointer to multi-buffer structure
- * @param[in]  _exp_key  Context where the scheduled keys are stored
- * @param[in]  _iv       Array of IV values
- * @param[in]  _src      Array of input buffers
- * @param[out] _dst      Array of output buffers - out[0] set to NULL on failure
- * @param[in]  _len      Array of corresponding input buffer lengths
- * @param[in]  _count    Number of input buffers
- *
- * @deprecated Please use the job API instead.
- *
- ******************************************************************************/
-#define IMB_SNOW3G_F8_N_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len, _count)                      \
-        ((_mgr)->snow3g_f8_n_buffer((_exp_key), (_iv), (_src), (_dst), (_len), (_count)))
-
-/**
- * This function performs snow3g f8 operation in parallel on N buffers. All
- * input buffers can have different lengths. Confidentiallity keys can vary,
- * schedules with snow3g_init_key_sched_multi().
- *
- * @param[in]  _mgr      Pointer to multi-buffer structure
- * @param[in]  _exp_key  Array of Contexts, where the scheduled keys are stored
- * @param[in]  _iv       Array of IV values
- * @param[in]  _src      Array of input buffers
- * @param[out] _dst      Array of output buffers
- *                       - out[0] set to NULL on failure
- * @param[in]  _len      Array of corresponding input buffer lengths
- * @param[in]  _count    Number of input buffers
- *
- * @deprecated Please use the job API instead.
- */
-#define IMB_SNOW3G_F8_N_BUFFER_MULTIKEY(_mgr, _exp_key, _iv, _src, _dst, _len, _count)             \
-        ((_mgr)->snow3g_f8_n_buffer_multikey((_exp_key), (_iv), (_src), (_dst), (_len), (_count)))
-
-/**
- * This function performs a snow3g f9 operation on a single block of data. The
- * key has already been scheduled with snow3g_init_f8_key_sched().
- *
- * @param[in]  _mgr      Pointer to multi-buffer structure
- * @param[in]  _exp_key  Context where the scheduled keys are stored
- * @param[in]  _iv       iv[3] = _BSWAP32(fresh^(dir<<15))
- *                       iv[2] = _BSWAP32(count^(dir<<31))
- *                       iv[1] = _BSWAP32(fresh)
- *                       iv[0] = _BSWAP32(count)
- *
- * @param[in]  _src      Input buffer
- * @param[in]  _len      Length in bits of the data to be hashed
- * @param[out] _tag      Computed digest
- *
- * @deprecated Please use the job API instead.
- */
-#define IMB_SNOW3G_F9_1_BUFFER(_mgr, _exp_key, _iv, _src, _len, _tag)                              \
-        ((_mgr)->snow3g_f9_1_buffer((_exp_key), (_iv), (_src), (_len), (_tag)))
-
-/**
- * Snow3g key schedule init function.
- *
- * @param[in]  _mgr      Pointer to multi-buffer structure
- * @param[in]  _key      Confidentiality/Integrity key (expected in LE format)
- * @param[out] _exp_key  Key schedule context to be initialised
- * @return 0 on success
- * @return -1 on error
- *
- ******************************************************************************/
-#define IMB_SNOW3G_INIT_KEY_SCHED(_mgr, _key, _exp_key)                                            \
-        ((_mgr)->snow3g_init_key_sched((_key), (_exp_key)))
-
-/**
- *******************************************************************************
- * This function returns the size of the snow3g_key_schedule_t, used
- * to store the key schedule.
- *
- * @param[in]  _mgr      Pointer to multi-buffer structure
- * @return size of snow3g_key_schedule_t type
- *
- ******************************************************************************/
-#define IMB_SNOW3G_KEY_SCHED_SIZE(_mgr) ((_mgr)->snow3g_key_sched_size())
 
 /**
  * HEC (hybrid error coding) compute and header update for 32-bit XGEM header
  *
- * @param [in] _mgr           Pointer to initialized IMB_MGR structure
- * @param [in] _src           Pointer to XGEM header (4 bytes)
+ * @param [in] src           Pointer to XGEM header (4 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  *
  * @return 32-bit XGEM header with updated HEC in BE format (ready for store)
  */
-#define IMB_HEC_32(_mgr, _src) ((_mgr)->hec_32(_src))
+IMB_DLL_EXPORT uint32_t
+imb_hec_32(const uint8_t *src, IMB_MGR *state);
 
 /**
  * HEC (hybrid error coding) compute and header update for 64-bit XGEM header
  *
- * @param [in] _mgr           Pointer to initialized IMB_MGR structure
- * @param [in] _src           Pointer to XGEM header (8 bytes)
+ * @param [in] src           Pointer to XGEM header (8 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  *
  * @return 64-bit XGEM header with updated HEC in BE format (ready for store)
  */
-#define IMB_HEC_64(_mgr, _src) ((_mgr)->hec_64(_src))
+IMB_DLL_EXPORT uint64_t
+imb_hec_64(const uint8_t *src, IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * Cyclic Redundancy Check (CRC)
+ * =========================================================
+ */
 
 /**
  * CRC32 Ethernet FCS function
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC32_ETHERNET_FCS(_mgr, _src, _len) (_mgr)->crc32_ethernet_fcs(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc32_ethernet_fcs(const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
  *  CRC16 X25 function
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC16_X25(_mgr, _src, _len) (_mgr)->crc16_x25(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc16_x25(const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
  *  CRC32 SCTP function
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC32_SCTP(_mgr, _src, _len) (_mgr)->crc32_sctp(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc32_sctp(const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
  *  LTE CRC24A function
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC24_LTE_A(_mgr, _src, _len) (_mgr)->crc24_lte_a(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc24_lte_a(const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
  *  LTE CRC24B function
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC24_LTE_B(_mgr, _src, _len) (_mgr)->crc24_lte_b(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc24_lte_b(const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
  *  Framing Protocol CRC16 function (3GPP TS 25.435, 3GPP TS 25.427)
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC16_FP_DATA(_mgr, _src, _len) (_mgr)->crc16_fp_data(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc16_fp_data(const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
  *  Framing Protocol CRC11 function (3GPP TS 25.435, 3GPP TS 25.427)
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC11_FP_HEADER(_mgr, _src, _len) (_mgr)->crc11_fp_header(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc11_fp_header(const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
  * Framing Protocol CRC7 function (3GPP TS 25.435, 3GPP TS 25.427)
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC7_FP_HEADER(_mgr, _src, _len) (_mgr)->crc7_fp_header(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc7_fp_header(const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
  *  IUUP CRC10 function (3GPP TS 25.415)
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC10_IUUP_DATA(_mgr, _src, _len) (_mgr)->crc10_iuup_data(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc10_iuup_data(const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
  *  IUUP CRC6 function (3GPP TS 25.415)
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC6_IUUP_HEADER(_mgr, _src, _len) (_mgr)->crc6_iuup_header(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc6_iuup_header(const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
  *  WIMAX OFDMA DATA CRC32 function (IEEE 802.16)
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC32_WIMAX_OFDMA_DATA(_mgr, _src, _len) (_mgr)->crc32_wimax_ofdma_data(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc32_wimax_ofdma_data(const void *src, const uint64_t len, IMB_MGR *state);
 
 /**
  *  WIMAX OFDMA HCS CRC8 function (IEEE 802.16)
+ *
+ * @param [in] src  Pointer to source data
+ * @param [in] len  Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_CRC8_WIMAX_OFDMA_HCS(_mgr, _src, _len) (_mgr)->crc8_wimax_ofdma_hcs(_src, _len)
+IMB_DLL_EXPORT uint32_t
+imb_crc8_wimax_ofdma_hcs(const void *src, const uint64_t len, IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * SM4
+ * =========================================================
+ */
 
 /**
  * SM4 key expansion
  *
- * @param [in] _mgr           Pointer to initialized IMB_MGR structure
- * @param [in] _key           Input key (16 bytes)
- * @param [out] _exp_enc_key  Encrypt direction key schedule (128 bytes)
- * @param [out] _exp_dec_key  Decrypt direction key schedule (128 bytes)
+ * @param [in] key           Input key (16 bytes)
+ * @param [out] exp_enc_key  Encrypt direction key schedule (128 bytes)
+ * @param [out] exp_dec_key  Decrypt direction key schedule (128 bytes)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
-#define IMB_SM4_KEYEXP(_mgr, _key, _exp_enc_key, _exp_dec_key)                                     \
-        ((_mgr)->sm4_keyexp((_key), (_exp_enc_key), (_exp_dec_key)))
+IMB_DLL_EXPORT void
+imb_sm4_keyexp(const void *key, void *exp_enc_key, void *exp_dec_key, IMB_MGR *state);
 
 /**
  * SM4-GCM precompute
@@ -2542,15 +1925,30 @@ init_mb_mgr_auto(IMB_MGR *state, IMB_ARCH *arch);
 IMB_DLL_EXPORT void
 imb_sm4_gcm_pre(IMB_MGR *mb_mgr, const void *key, struct gcm_key_data *key_data);
 
-/* Auxiliary functions */
+/*
+ * =========================================================
+ * =========================================================
+ * DES
+ * =========================================================
+ */
+
+/**
+ * Generate DES key schedule
+ *
+ * @param [out] ks    DES key schedule
+ * @param [in] key         input key
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_des_keysched(uint64_t *ks, const void *key, IMB_MGR *state);
 
 /**
  * @brief DES key schedule set up.
  *
  * \a ks buffer needs to accommodate \a DES_KEY_SCHED_SIZE (128) bytes of data.
  *
- * @param[out] ks Destination buffer to accommodate DES key schedule
- * @param[in] key Pointer to an 8 byte DES key
+ * @param [out] ks Destination buffer to accommodate DES key schedule
+ * @param [in] key Pointer to an 8 byte DES key
  *
  * @return Operation status
  * @retval 0 success
@@ -2558,6 +1956,28 @@ imb_sm4_gcm_pre(IMB_MGR *mb_mgr, const void *key, struct gcm_key_data *key_data)
  */
 IMB_DLL_EXPORT int
 des_key_schedule(uint64_t *ks, const void *key);
+
+/**
+ * @brief DES-CFB Encrypt/Decrypt up to one block.
+ *
+ * Processes only one buffer at a time.
+ * Designed to manage partial blocks of DOCSIS 3.1 SEC BPI.
+ *
+ * @param [out] out Plain/cipher text output
+ * @param [in] in   Plain/cipher text input
+ * @param [in] iv   Pointer to 8 byte IV
+ * @param [in] ks   Pointer to DES key schedule
+ * @param [in] len  Length of data in bytes
+ */
+IMB_DLL_EXPORT void
+des_cfb_one(void *out, const void *in, const uint64_t *iv, const uint64_t *ks, const int len);
+
+/*
+ * =========================================================
+ * =========================================================
+ * HMAC
+ * =========================================================
+ */
 
 /**
  * @brief Ipad Opad padding for HMAC
@@ -2573,241 +1993,12 @@ IMB_DLL_EXPORT void
 imb_hmac_ipad_opad(IMB_MGR *mb_mgr, const IMB_HASH_ALG sha_type, const void *pkey,
                    const size_t key_len, void *ipad_hash, void *opad_hash);
 
-/**
- * @brief DES-CFB Encrypt/Decrypt up to one block.
- *
- * Processes only one buffer at a time.
- * Designed to manage partial blocks of DOCSIS 3.1 SEC BPI.
- *
- * @param [out] out Plaintext/Ciphertext output
- * @param [in] in   Plaintext/Ciphertext input
- * @param [in] iv   Pointer to 8 byte IV
- * @param [in] ks   Pointer to DES key schedule
- * @param [in] len  Length of data in bytes
- */
-IMB_DLL_EXPORT void
-des_cfb_one(void *out, const void *in, const uint64_t *iv, const uint64_t *ks, const int len);
-
-/**
- * Authenticate 64-byte data buffer with MD5.
- *
- * @param[in] data    64-byte data buffer
- * @param[out] digest Digest output (16 bytes)
- */
-IMB_DLL_EXPORT void
-md5_one_block_sse(const void *data, void *digest);
-/**
- * @copydoc md5_one_block_sse
- */
-IMB_DLL_EXPORT void
-md5_one_block_avx2(const void *data, void *digest);
-/**
- * @copydoc md5_one_block_sse
- */
-IMB_DLL_EXPORT void
-md5_one_block_avx512(const void *data, void *digest);
-
-/**
- * Generate encryption/decryption AES-128 expansion keys.
- *
- * @param[in] key           AES-128 key
- * @param[out] enc_exp_keys AES-128 encryption expansion key
- * @param[out] dec_exp_keys AES-128 decryption expansion key
- */
-IMB_DLL_EXPORT void
-aes_keyexp_128_sse(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-/**
- * @copydoc aes_keyexp_128_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_128_avx(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-/**
- * @copydoc aes_keyexp_128_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_128_avx2(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-/**
- * @copydoc aes_keyexp_128_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_128_avx512(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-
-/**
- * Generate encryption/decryption AES-192 expansion keys.
- *
- * @param[in] key           AES-192 key
- * @param[out] enc_exp_keys AES-192 encryption expansion key
- * @param[out] dec_exp_keys AES-192 decryption expansion key
- */
-IMB_DLL_EXPORT void
-aes_keyexp_192_sse(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-/**
- * @copydoc aes_keyexp_256_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_192_avx(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-/**
- * @copydoc aes_keyexp_256_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_192_avx2(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-/**
- * @copydoc aes_keyexp_256_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_192_avx512(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-
-/**
- * Generate encryption/decryption AES-256 expansion keys.
- *
- * @param[in] key           AES-256 key
- * @param[out] enc_exp_keys AES-256 encryption expansion key
- * @param[out] dec_exp_keys AES-256 decryption expansion key
- */
-IMB_DLL_EXPORT void
-aes_keyexp_256_sse(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-/**
- * @copydoc aes_keyexp_256_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_256_avx(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-/**
- * @copydoc aes_keyexp_256_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_256_avx2(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-/**
- * @copydoc aes_keyexp_256_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_256_avx512(const void *key, void *enc_exp_keys, void *dec_exp_keys);
-
-/**
- * Generate encryption AES-128 expansion keys.
- *
- * @param[in] key           AES-128 key
- * @param[out] enc_exp_keys AES-128 encryption expansion key
- */
-IMB_DLL_EXPORT void
-aes_keyexp_128_enc_sse(const void *key, void *enc_exp_keys);
-/**
- * @copydoc aes_keyexp_128_enc_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_128_enc_avx(const void *key, void *enc_exp_keys);
-/**
- * @copydoc aes_keyexp_128_enc_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_128_enc_avx2(const void *key, void *enc_exp_keys);
-/**
- * @copydoc aes_keyexp_128_enc_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_128_enc_avx512(const void *key, void *enc_exp_keys);
-
-/**
- * Generate encryption AES-192 expansion keys.
- *
- * @param[in] key           AES-192 key
- * @param[out] enc_exp_keys AES-192 encryption expansion key
- */
-IMB_DLL_EXPORT void
-aes_keyexp_192_enc_sse(const void *key, void *enc_exp_keys);
-/**
- * @copydoc aes_keyexp_192_enc_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_192_enc_avx(const void *key, void *enc_exp_keys);
-/**
- * @copydoc aes_keyexp_192_enc_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_192_enc_avx2(const void *key, void *enc_exp_keys);
-/**
- * @copydoc aes_keyexp_192_enc_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_192_enc_avx512(const void *key, void *enc_exp_keys);
-
-/**
- * Generate encryption AES-256 expansion keys.
- *
- * @param[in] key           AES-256 key
- * @param[out] enc_exp_keys AES-256 encryption expansion key
- */
-IMB_DLL_EXPORT void
-aes_keyexp_256_enc_sse(const void *key, void *enc_exp_keys);
-/**
- * @copydoc aes_keyexp_256_enc_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_256_enc_avx(const void *key, void *enc_exp_keys);
-/**
- * @copydoc aes_keyexp_256_enc_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_256_enc_avx2(const void *key, void *enc_exp_keys);
-/**
- * @copydoc aes_keyexp_256_enc_sse
- */
-IMB_DLL_EXPORT void
-aes_keyexp_256_enc_avx512(const void *key, void *enc_exp_keys);
-
-/**
- * Generate AES-128-XCBC expansion keys.
- *
- * @param[in] key     Input AES-128-XCBC key
- * @param[out] k1_exp k1 expansion key
- * @param[out] k2     k2 key
- * @param[out] k3     k3 key
- */
-IMB_DLL_EXPORT void
-aes_xcbc_expand_key_sse(const void *key, void *k1_exp, void *k2, void *k3);
-/**
- * @copydoc aes_xcbc_expand_key_sse
- */
-IMB_DLL_EXPORT void
-aes_xcbc_expand_key_avx(const void *key, void *k1_exp, void *k2, void *k3);
-/**
- * @copydoc aes_xcbc_expand_key_sse
- */
-IMB_DLL_EXPORT void
-aes_xcbc_expand_key_avx2(const void *key, void *k1_exp, void *k2, void *k3);
-/**
- * @copydoc aes_xcbc_expand_key_sse
- */
-IMB_DLL_EXPORT void
-aes_xcbc_expand_key_avx512(const void *key, void *k1_exp, void *k2, void *k3);
-
-/**
- * Generate AES-128-CMAC subkeys.
- *
- * @param[in] key_exp Input expanded AES-128-CMAC key
- * @param[out] key1   Subkey 1
- * @param[out] key2   Subkey 2
- */
-IMB_DLL_EXPORT void
-aes_cmac_subkey_gen_sse(const void *key_exp, void *key1, void *key2);
-/**
- * @copydoc aes_cmac_subkey_gen_sse
- */
-IMB_DLL_EXPORT void
-aes_cmac_subkey_gen_avx(const void *key_exp, void *key1, void *key2);
-/**
- * @copydoc aes_cmac_subkey_gen_sse
- */
-IMB_DLL_EXPORT void
-aes_cmac_subkey_gen_avx2(const void *key_exp, void *key1, void *key2);
-/**
- * @copydoc aes_cmac_subkey_gen_sse
- */
-IMB_DLL_EXPORT void
-aes_cmac_subkey_gen_avx512(const void *key_exp, void *key1, void *key2);
-
 /*
- * Direct GCM API.
- * Note that GCM is also available through job API.
+ * =========================================================
+ * =========================================================
+ * AES-GCM
+ * Note: GCM is also available through job and burst API's.
+ * =========================================================
  */
 
 /**
@@ -2815,8 +2006,8 @@ aes_cmac_subkey_gen_avx512(const void *key_exp, void *key1, void *key2);
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
- * @param [out] out             Ciphertext output. Encrypt in-place is allowed
- * @param [in] in               Plaintext input
+ * @param [out] out             Cipher text output. Encrypt in-place is allowed
+ * @param [in] in               Plain text input
  * @param [in] len              Length of data in bytes for encryption
  * @param [in] iv               Pointer to 12 byte IV structure
  *                              Internally, the library concatenates 0x00000001
@@ -2827,26 +2018,19 @@ aes_cmac_subkey_gen_avx512(const void *key_exp, void *key1, void *key2);
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are 16
  *                              (most likely), 12 or 8
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_enc_128_sse(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                    uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                    uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag, uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_enc_128_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_enc_128_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                         uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                         uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag,
-                         uint64_t auth_tag_len);
+imb_aes128_gcm_enc(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                   void *out, const void *in, uint64_t len, const void *iv, const void *aad,
+                   uint64_t aad_len, void *auth_tag, uint64_t auth_tag_len, IMB_MGR *state);
 /**
  * @brief AES-GCM-192 Encryption.
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
  * @param [out] out             Ciphertext output. Encrypt in-place is allowed
- * @param [in] in               Plaintext input
+ * @param [in] in               Plain text input
  * @param [in] len              Length of data in bytes for encryption
  * @param [in] iv               Pointer to 12 byte IV structure
  *                              Internally, the library concatenates 0x00000001
@@ -2857,27 +2041,20 @@ aes_gcm_enc_128_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are 16
  *                              (most likely), 12 or 8
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_enc_192_sse(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                    uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                    uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag, uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_enc_192_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_enc_192_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                         uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                         uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag,
-                         uint64_t auth_tag_len);
+imb_aes192_gcm_enc(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                   void *out, const void *in, uint64_t len, const void *iv, const void *aad,
+                   uint64_t aad_len, void *auth_tag, uint64_t auth_tag_len, IMB_MGR *state);
 
 /**
  * @brief AES-GCM-256 Encryption.
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
- * @param [out] out             Ciphertext output. Encrypt in-place is allowed
- * @param [in] in               Plaintext input
+ * @param [out] out             Cipher text output. Encrypt in-place is allowed
+ * @param [in] in               Plain text input
  * @param [in] len              Length of data in bytes for encryption
  * @param [in] iv               Pointer to 12 byte IV structure
  *                              Internally, the library concatenates 0x00000001
@@ -2888,27 +2065,20 @@ aes_gcm_enc_192_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are 16
  *                              (most likely), 12 or 8
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_enc_256_sse(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                    uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                    uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag, uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_enc_256_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_enc_256_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                         uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                         uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag,
-                         uint64_t auth_tag_len);
+imb_aes256_gcm_enc(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                   void *out, const void *in, uint64_t len, const void *iv, const void *aad,
+                   uint64_t aad_len, void *auth_tag, uint64_t auth_tag_len, IMB_MGR *state);
 
 /**
  * @brief AES-GCM-128 Decryption.
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
- * @param [out] out             Plaintext output. Decrypt in-place is allowed
- * @param [in] in               Ciphertext input
+ * @param [out] out             Plain text output. Decrypt in-place is allowed
+ * @param [in] in               Cipher text input
  * @param [in] len              Length of data in bytes for decryption
  * @param [in] iv               Pointer to 12 byte IV structure
  *                              Internally, the library concatenates 0x00000001
@@ -2919,27 +2089,20 @@ aes_gcm_enc_256_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are 16
  *                              (most likely), 12 or 8
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_dec_128_sse(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                    uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                    uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag, uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_dec_128_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_dec_128_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                         uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                         uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag,
-                         uint64_t auth_tag_len);
+imb_aes128_gcm_dec(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                   void *out, const void *in, uint64_t len, const void *iv, const void *aad,
+                   uint64_t aad_len, void *auth_tag, uint64_t auth_tag_len, IMB_MGR *state);
 
 /**
  * @brief AES-GCM-192 Decryption.
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
- * @param [out] out             Plaintext output. Decrypt in-place is allowed
- * @param [in] in               Ciphertext input
+ * @param [out] out             Plain text output. Decrypt in-place is allowed
+ * @param [in] in               Cipher text input
  * @param [in] len              Length of data in bytes for decryption
  * @param [in] iv               Pointer to 12 byte IV structure
  *                              Internally, the library concatenates 0x00000001
@@ -2950,27 +2113,20 @@ aes_gcm_dec_128_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are 16
  *                              (most likely), 12 or 8
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_dec_192_sse(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                    uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                    uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag, uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_dec_192_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_dec_192_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                         uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                         uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag,
-                         uint64_t auth_tag_len);
+imb_aes192_gcm_dec(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                   void *out, const void *in, uint64_t len, const void *iv, const void *aad,
+                   uint64_t aad_len, void *auth_tag, uint64_t auth_tag_len, IMB_MGR *state);
 
 /**
  * @brief AES-GCM-256 Decryption.
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
- * @param [out] out             Plaintext output. Decrypt in-place is allowed
- * @param [in] in               Ciphertext input
+ * @param [out] out             Plain text output. Decrypt in-place is allowed
+ * @param [in] in               Cipher text input
  * @param [in] len              Length of data in bytes for decryption
  * @param [in] iv               Pointer to 12 byte IV structure
  *                              Internally, the library concatenates 0x00000001
@@ -2981,19 +2137,12 @@ aes_gcm_dec_192_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are 16
  *                              (most likely), 12 or 8
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_dec_256_sse(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                    uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                    uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag, uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_dec_256_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_dec_256_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                         uint8_t *out, uint8_t const *in, uint64_t len, const uint8_t *iv,
-                         uint8_t const *aad, uint64_t aad_len, uint8_t *auth_tag,
-                         uint64_t auth_tag_len);
+imb_aes256_gcm_dec(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                   void *out, const void *in, uint64_t len, const void *iv, const void *aad,
+                   uint64_t aad_len, void *auth_tag, uint64_t auth_tag_len, IMB_MGR *state);
 
 /**
  * @brief Initialize a gcm_context_data structure to prepare for
@@ -3006,17 +2155,12 @@ aes_gcm_dec_256_avx_gen4(const struct gcm_key_data *key_data, struct gcm_context
  *                              to the IV
  * @param [in] aad              Additional Authenticated Data (AAD)
  * @param [in] aad_len          Length of AAD in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_init_128_sse(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                     const uint8_t *iv, uint8_t const *aad, uint64_t aad_len);
-/**
- * @copydoc aes_gcm_init_128_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_init_128_avx_gen4(const struct gcm_key_data *key_data,
-                          struct gcm_context_data *context_data, const uint8_t *iv,
-                          uint8_t const *aad, uint64_t aad_len);
+imb_aes128_gcm_init(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                    const void *iv, const void *aad, uint64_t aad_len, IMB_MGR *state);
+
 /**
  * @brief Initialize a gcm_context_data structure to prepare for
  *        AES-GCM-192 Encryption.
@@ -3028,17 +2172,12 @@ aes_gcm_init_128_avx_gen4(const struct gcm_key_data *key_data,
  *                              to the IV
  * @param [in] aad              Additional Authenticated Data (AAD)
  * @param [in] aad_len          Length of AAD in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_init_192_sse(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                     const uint8_t *iv, uint8_t const *aad, uint64_t aad_len);
-/**
- * @copydoc aes_gcm_init_192_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_init_192_avx_gen4(const struct gcm_key_data *key_data,
-                          struct gcm_context_data *context_data, const uint8_t *iv,
-                          uint8_t const *aad, uint64_t aad_len);
+imb_aes192_gcm_init(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                    const void *iv, const void *aad, uint64_t aad_len, IMB_MGR *state);
+
 /**
  * @brief Initialize a gcm_context_data structure to prepare for
  *        AES-GCM-256 Encryption.
@@ -3050,143 +2189,155 @@ aes_gcm_init_192_avx_gen4(const struct gcm_key_data *key_data,
  *                              to the IV
  * @param [in] aad              Additional Authenticated Data (AAD)
  * @param [in] aad_len          Length of AAD in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_init_256_sse(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
-                     const uint8_t *iv, uint8_t const *aad, uint64_t aad_len);
+imb_aes256_gcm_init(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                    const void *iv, const void *aad, uint64_t aad_len, IMB_MGR *state);
+
 /**
- * @copydoc aes_gcm_init_256_sse
+ * @brief Initialize a gcm_context_data structure to prepare for
+ *        AES-GCM-128 Encryption (any IV size).
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [in] iv               Pointer IV structure
+ * @param [in] iv_len           Size in bytes of \a iv structure
+ * @param [in] aad              Additional Authenticated Data (AAD)
+ * @param [in] aad_len          Length of AAD in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_init_256_avx_gen4(const struct gcm_key_data *key_data,
-                          struct gcm_context_data *context_data, const uint8_t *iv,
-                          uint8_t const *aad, uint64_t aad_len);
+imb_aes128_gcm_init_var_iv(const struct gcm_key_data *key_data,
+                           struct gcm_context_data *context_data, const void *iv,
+                           const uint64_t iv_len, const void *aad, const uint64_t aad_len,
+                           IMB_MGR *state);
+
+/**
+ * @brief Initialize a gcm_context_data structure to prepare for
+ *        AES-GCM-192 Encryption (any IV size).
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [in] iv               Pointer IV structure
+ * @param [in] iv_len           Size in bytes of \a iv structure
+ * @param [in] aad              Additional Authenticated Data (AAD)
+ * @param [in] aad_len          Length of AAD in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_aes192_gcm_init_var_iv(const struct gcm_key_data *key_data,
+                           struct gcm_context_data *context_data, const void *iv,
+                           const uint64_t iv_len, const void *aad, const uint64_t aad_len,
+                           IMB_MGR *state);
+
+/**
+ * @brief Initialize a gcm_context_data structure to prepare for
+ *        AES-GCM-256 Encryption (any IV size).
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [in] iv               Pointer IV structure
+ * @param [in] iv_len           Size in bytes of \a iv structure
+ * @param [in] aad              Additional Authenticated Data (AAD)
+ * @param [in] aad_len          Length of AAD in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_aes256_gcm_init_var_iv(const struct gcm_key_data *key_data,
+                           struct gcm_context_data *context_data, const void *iv,
+                           const uint64_t iv_len, const void *aad, const uint64_t aad_len,
+                           IMB_MGR *state);
 
 /**
  * @brief Encrypt a block of a AES-GCM-128 encryption message.
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
- * @param [out] out             Ciphertext output. Encrypt in-place is allowed
- * @param [in] in               Plaintext input
+ * @param [out] out             Cipher text output. Encrypt in-place is allowed
+ * @param [in] in               Plain text input
  * @param [in] len              Length of data in bytes for encryption
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_enc_128_update_sse(const struct gcm_key_data *key_data,
-                           struct gcm_context_data *context_data, uint8_t *out, const uint8_t *in,
-                           uint64_t len);
-/**
- * @copydoc aes_gcm_enc_128_update_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_enc_128_update_avx_gen4(const struct gcm_key_data *key_data,
-                                struct gcm_context_data *context_data, uint8_t *out,
-                                const uint8_t *in, uint64_t len);
+imb_aes128_gcm_enc_update(const struct gcm_key_data *key_data,
+                          struct gcm_context_data *context_data, void *out, const void *in,
+                          const uint64_t len, IMB_MGR *state);
 
 /**
  * @brief Encrypt a block of a AES-GCM-192 encryption message.
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
- * @param [out] out             Ciphertext output. Encrypt in-place is allowed
- * @param [in] in               Plaintext input
+ * @param [out] out             Cipher text output. Encrypt in-place is allowed
+ * @param [in] in               Plain text input
  * @param [in] len              Length of data in bytes for encryption
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_enc_192_update_sse(const struct gcm_key_data *key_data,
-                           struct gcm_context_data *context_data, uint8_t *out, const uint8_t *in,
-                           uint64_t len);
-/**
- * @copydoc aes_gcm_enc_192_update_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_enc_192_update_avx_gen4(const struct gcm_key_data *key_data,
-                                struct gcm_context_data *context_data, uint8_t *out,
-                                const uint8_t *in, uint64_t len);
+imb_aes192_gcm_enc_update(const struct gcm_key_data *key_data,
+                          struct gcm_context_data *context_data, void *out, const void *in,
+                          const uint64_t len, IMB_MGR *state);
 
 /**
  * @brief Encrypt a block of a AES-GCM-256 encryption message.
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
- * @param [out] out             Ciphertext output. Encrypt in-place is allowed
- * @param [in] in               Plaintext input
+ * @param [out] out             Cipher text output. Encrypt in-place is allowed
+ * @param [in] in               Plain text input
  * @param [in] len              Length of data in bytes for encryption
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_enc_256_update_sse(const struct gcm_key_data *key_data,
-                           struct gcm_context_data *context_data, uint8_t *out, const uint8_t *in,
-                           uint64_t len);
-/**
- * @copydoc aes_gcm_enc_256_update_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_enc_256_update_avx_gen4(const struct gcm_key_data *key_data,
-                                struct gcm_context_data *context_data, uint8_t *out,
-                                const uint8_t *in, uint64_t len);
+imb_aes256_gcm_enc_update(const struct gcm_key_data *key_data,
+                          struct gcm_context_data *context_data, void *out, const void *in,
+                          const uint64_t len, IMB_MGR *state);
 
 /**
  * @brief Decrypt a block of a AES-GCM-128 encryption message.
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
- * @param [out] out             Plaintext output. Decrypt in-place is allowed
- * @param [in] in               Ciphertext input
+ * @param [out] out             Plain text output. Decrypt in-place is allowed
+ * @param [in] in               Cipher text input
  * @param [in] len              Length of data in bytes for decryption
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_dec_128_update_sse(const struct gcm_key_data *key_data,
-                           struct gcm_context_data *context_data, uint8_t *out, const uint8_t *in,
-                           uint64_t len);
-/**
- * @copydoc aes_gcm_dec_128_update_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_dec_128_update_avx_gen4(const struct gcm_key_data *key_data,
-                                struct gcm_context_data *context_data, uint8_t *out,
-                                const uint8_t *in, uint64_t len);
+imb_aes128_gcm_dec_update(const struct gcm_key_data *key_data,
+                          struct gcm_context_data *context_data, void *out, const void *in,
+                          const uint64_t len, IMB_MGR *state);
 
 /**
  * @brief Decrypt a block of a AES-GCM-192 encryption message.
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
- * @param [out] out             Plaintext output. Decrypt in-place is allowed
- * @param [in] in               Ciphertext input
+ * @param [out] out             Plain text output. Decrypt in-place is allowed
+ * @param [in] in               Cipher text input
  * @param [in] len              Length of data in bytes for decryption
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_dec_192_update_sse(const struct gcm_key_data *key_data,
-                           struct gcm_context_data *context_data, uint8_t *out, const uint8_t *in,
-                           uint64_t len);
-/**
- * @copydoc aes_gcm_dec_192_update_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_dec_192_update_avx_gen4(const struct gcm_key_data *key_data,
-                                struct gcm_context_data *context_data, uint8_t *out,
-                                const uint8_t *in, uint64_t len);
+imb_aes192_gcm_dec_update(const struct gcm_key_data *key_data,
+                          struct gcm_context_data *context_data, void *out, const void *in,
+                          const uint64_t len, IMB_MGR *state);
 
 /**
  * @brief Decrypt a block of a AES-GCM-256 encryption message.
  *
  * @param [in] key_data         GCM expanded key data
  * @param [in,out] context_data GCM operation context data
- * @param [out] out             Plaintext output. Decrypt in-place is allowed
- * @param [in] in               Ciphertext input
+ * @param [out] out             Plain text output. Decrypt in-place is allowed
+ * @param [in] in               Cipher text input
  * @param [in] len              Length of data in bytes for decryption
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_dec_256_update_sse(const struct gcm_key_data *key_data,
-                           struct gcm_context_data *context_data, uint8_t *out, const uint8_t *in,
-                           uint64_t len);
-/**
- * @copydoc aes_gcm_dec_256_update_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_dec_256_update_avx_gen4(const struct gcm_key_data *key_data,
-                                struct gcm_context_data *context_data, uint8_t *out,
-                                const uint8_t *in, uint64_t len);
+imb_aes256_gcm_dec_update(const struct gcm_key_data *key_data,
+                          struct gcm_context_data *context_data, void *out, const void *in,
+                          const uint64_t len, IMB_MGR *state);
 
 /**
  * @brief End encryption of a AES-GCM-128 encryption message.
@@ -3197,18 +2348,12 @@ aes_gcm_dec_256_update_avx_gen4(const struct gcm_key_data *key_data,
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are
  *                              16 (most likely), 12 or 8.
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_enc_128_finalize_sse(const struct gcm_key_data *key_data,
-                             struct gcm_context_data *context_data, uint8_t *auth_tag,
-                             uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_enc_128_finalize_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_enc_128_finalize_avx_gen4(const struct gcm_key_data *key_data,
-                                  struct gcm_context_data *context_data, uint8_t *auth_tag,
-                                  uint64_t auth_tag_len);
+imb_aes128_gcm_enc_finalize(const struct gcm_key_data *key_data,
+                            struct gcm_context_data *context_data, void *auth_tag,
+                            const uint64_t auth_tag_len, IMB_MGR *state);
 
 /**
  * @brief End encryption of a AES-GCM-192 encryption message.
@@ -3219,18 +2364,12 @@ aes_gcm_enc_128_finalize_avx_gen4(const struct gcm_key_data *key_data,
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are
  *                              16 (most likely), 12 or 8.
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_enc_192_finalize_sse(const struct gcm_key_data *key_data,
-                             struct gcm_context_data *context_data, uint8_t *auth_tag,
-                             uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_enc_192_finalize_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_enc_192_finalize_avx_gen4(const struct gcm_key_data *key_data,
-                                  struct gcm_context_data *context_data, uint8_t *auth_tag,
-                                  uint64_t auth_tag_len);
+imb_aes192_gcm_enc_finalize(const struct gcm_key_data *key_data,
+                            struct gcm_context_data *context_data, void *auth_tag,
+                            const uint64_t auth_tag_len, IMB_MGR *state);
 
 /**
  * @brief End encryption of a AES-GCM-256 encryption message.
@@ -3241,18 +2380,12 @@ aes_gcm_enc_192_finalize_avx_gen4(const struct gcm_key_data *key_data,
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are
  *                              16 (most likely), 12 or 8.
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_enc_256_finalize_sse(const struct gcm_key_data *key_data,
-                             struct gcm_context_data *context_data, uint8_t *auth_tag,
-                             uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_enc_256_finalize_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_enc_256_finalize_avx_gen4(const struct gcm_key_data *key_data,
-                                  struct gcm_context_data *context_data, uint8_t *auth_tag,
-                                  uint64_t auth_tag_len);
+imb_aes256_gcm_enc_finalize(const struct gcm_key_data *key_data,
+                            struct gcm_context_data *context_data, void *auth_tag,
+                            const uint64_t auth_tag_len, IMB_MGR *state);
 
 /**
  * @brief End decryption of a AES-GCM-128 encryption message.
@@ -3263,18 +2396,12 @@ aes_gcm_enc_256_finalize_avx_gen4(const struct gcm_key_data *key_data,
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are
  *                              16 (most likely), 12 or 8.
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_dec_128_finalize_sse(const struct gcm_key_data *key_data,
-                             struct gcm_context_data *context_data, uint8_t *auth_tag,
-                             uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_dec_128_finalize_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_dec_128_finalize_avx_gen4(const struct gcm_key_data *key_data,
-                                  struct gcm_context_data *context_data, uint8_t *auth_tag,
-                                  uint64_t auth_tag_len);
+imb_aes128_gcm_dec_finalize(const struct gcm_key_data *key_data,
+                            struct gcm_context_data *context_data, void *auth_tag,
+                            const uint64_t auth_tag_len, IMB_MGR *state);
 
 /**
  * @brief End decryption of a AES-GCM-192 encryption message.
@@ -3285,18 +2412,12 @@ aes_gcm_dec_128_finalize_avx_gen4(const struct gcm_key_data *key_data,
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are
  *                              16 (most likely), 12 or 8.
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_dec_192_finalize_sse(const struct gcm_key_data *key_data,
-                             struct gcm_context_data *context_data, uint8_t *auth_tag,
-                             uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_dec_192_finalize_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_dec_192_finalize_avx_gen4(const struct gcm_key_data *key_data,
-                                  struct gcm_context_data *context_data, uint8_t *auth_tag,
-                                  uint64_t auth_tag_len);
+imb_aes192_gcm_dec_finalize(const struct gcm_key_data *key_data,
+                            struct gcm_context_data *context_data, void *auth_tag,
+                            const uint64_t auth_tag_len, IMB_MGR *state);
 
 /**
  * @brief End decryption of a AES-GCM-256 encryption message.
@@ -3307,18 +2428,12 @@ aes_gcm_dec_192_finalize_avx_gen4(const struct gcm_key_data *key_data,
  * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
  *                              a multiple of 4 bytes). Valid values are
  *                              16 (most likely), 12 or 8.
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_dec_256_finalize_sse(const struct gcm_key_data *key_data,
-                             struct gcm_context_data *context_data, uint8_t *auth_tag,
-                             uint64_t auth_tag_len);
-/**
- * @copydoc aes_gcm_dec_256_finalize_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_dec_256_finalize_avx_gen4(const struct gcm_key_data *key_data,
-                                  struct gcm_context_data *context_data, uint8_t *auth_tag,
-                                  uint64_t auth_tag_len);
+imb_aes256_gcm_dec_finalize(const struct gcm_key_data *key_data,
+                            struct gcm_context_data *context_data, void *auth_tag,
+                            const uint64_t auth_tag_len, IMB_MGR *state);
 
 /**
  * @brief Precomputation of AES-GCM-128 HashKey constants.
@@ -3327,15 +2442,10 @@ aes_gcm_dec_256_finalize_avx_gen4(const struct gcm_key_data *key_data,
  * shifted_hkey_X_k).
  *
  * @param [in,out] key_data GCM key data
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_precomp_128_sse(struct gcm_key_data *key_data);
-
-/**
- * @copydoc aes_gcm_precomp_128_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_precomp_128_avx_gen4(struct gcm_key_data *key_data);
+imb_aes128_gcm_precomp(struct gcm_key_data *key_data, IMB_MGR *state);
 
 /**
  * @brief Precomputation of AES-GCM-192 HashKey constants.
@@ -3344,15 +2454,10 @@ aes_gcm_precomp_128_avx_gen4(struct gcm_key_data *key_data);
  * shifted_hkey_X_k).
  *
  * @param [in,out] key_data GCM key data
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_precomp_192_sse(struct gcm_key_data *key_data);
-
-/**
- * @copydoc aes_gcm_precomp_192_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_precomp_192_avx_gen4(struct gcm_key_data *key_data);
+imb_aes192_gcm_precomp(struct gcm_key_data *key_data, IMB_MGR *state);
 
 /**
  * @brief Precomputation of AES-GCM-256 HashKey constants.
@@ -3361,15 +2466,10 @@ aes_gcm_precomp_192_avx_gen4(struct gcm_key_data *key_data);
  * shifted_hkey_X_k).
  *
  * @param [in,out] key_data GCM key data
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_precomp_256_sse(struct gcm_key_data *key_data);
-
-/**
- * @copydoc aes_gcm_precomp_256_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_precomp_256_avx_gen4(struct gcm_key_data *key_data);
+imb_aes256_gcm_precomp(struct gcm_key_data *key_data, IMB_MGR *state);
 
 /**
  * @brief Pre-processes AES-GCM-128 key data.
@@ -3379,14 +2479,11 @@ aes_gcm_precomp_256_avx_gen4(struct gcm_key_data *key_data);
  *
  * @param [in] key       Pointer to key data
  * @param [out] key_data GCM expanded key data
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_pre_128_sse(const void *key, struct gcm_key_data *key_data);
-/**
- * @copydoc aes_gcm_pre_128_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_pre_128_avx_gen4(const void *key, struct gcm_key_data *key_data);
+imb_aes128_gcm_pre(const void *key, struct gcm_key_data *key_data, IMB_MGR *state);
+
 /**
  * @brief Pre-processes AES-GCM-192 key data.
  *
@@ -3395,14 +2492,11 @@ aes_gcm_pre_128_avx_gen4(const void *key, struct gcm_key_data *key_data);
  *
  * @param [in] key       Pointer to key data
  * @param [out] key_data GCM expanded key data
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_pre_192_sse(const void *key, struct gcm_key_data *key_data);
-/**
- * @copydoc aes_gcm_pre_192_sse
- */
-IMB_DLL_EXPORT void
-aes_gcm_pre_192_avx_gen4(const void *key, struct gcm_key_data *key_data);
+imb_aes192_gcm_pre(const void *key, struct gcm_key_data *key_data, IMB_MGR *state);
+
 /**
  * @brief Pre-processes AES-GCM-256 key data.
  *
@@ -3411,14 +2505,186 @@ aes_gcm_pre_192_avx_gen4(const void *key, struct gcm_key_data *key_data);
  *
  * @param [in] key       Pointer to key data
  * @param [out] key_data GCM expanded key data
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_pre_256_sse(const void *key, struct gcm_key_data *key_data);
+imb_aes256_gcm_pre(const void *key, struct gcm_key_data *key_data, IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * GHASH
+ * =========================================================
+ */
+
 /**
- * @copydoc aes_gcm_pre_256_sse
+ * @brief Pre-processes GHASH key data.
+ *
+ * Prefills the key data with the initial sub hash key for tag encoding
+ *
+ * @param [in] key       Pointer to key data
+ * @param [out] key_data GCM expanded key data
+ * @param [in] state  Pointer to initialized IMB_MGR structure
  */
 IMB_DLL_EXPORT void
-aes_gcm_pre_256_avx_gen4(const void *key, struct gcm_key_data *key_data);
+imb_ghash_pre(const void *key, struct gcm_key_data *key_data, IMB_MGR *state);
+
+/**
+ * @brief Computes GHASH authentication tag over the supplied data.
+ *
+ * @param [in] key_data     GCM expanded key data
+ * @param [in] src          Pointer to source data
+ * @param [in] len          Length of source data in bytes
+ * @param [out] auth_tag    Authenticated Tag output
+ * @param [in] auth_tag_len Authenticated Tag Length in bytes (must be
+ *                          a multiple of 4 bytes). Valid values are 16
+ *                          (most likely), 12 or 8
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_ghash(const struct gcm_key_data *key_data, const void *src, const uint64_t len, void *auth_tag,
+          const uint64_t auth_tag_len, IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * AES-GMAC
+ * Note: GMAC is also available through job and burst API's.
+ * =========================================================
+ */
+
+/**
+ * @brief Initialize a gcm_context_data structure to prepare for
+ *        AES-GMAC-128 tag computation.
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [in] iv               Pointer to IV structure
+ * @param [in] iv_len           Length of IV in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_aes128_gmac_init(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                     const void *iv, const uint64_t iv_len, IMB_MGR *state);
+
+/**
+ * @brief Process data for AES-GMAC-128 tag computation.
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [in] in               Pointer to source data
+ * @param [in] len              Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_aes128_gmac_update(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                       const void *in, const uint64_t len, IMB_MGR *state);
+
+/**
+ * @brief Finalize AES-GMAC-128 tag computation and output the tag.
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [out] auth_tag        Authenticated Tag output
+ * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
+ *                              a multiple of 4 bytes). Valid values are 16
+ *                              (most likely), 12 or 8
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_aes128_gmac_finalize(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                         void *auth_tag, const uint64_t auth_tag_len, IMB_MGR *state);
+
+/**
+ * @brief Initialize a gcm_context_data structure to prepare for
+ *        AES-GMAC-192 tag computation.
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [in] iv               Pointer to IV structure
+ * @param [in] iv_len           Length of IV in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_aes192_gmac_init(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                     const void *iv, const uint64_t iv_len, IMB_MGR *state);
+
+/**
+ * @brief Process data for AES-GMAC-192 tag computation.
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [in] in               Pointer to source data
+ * @param [in] len              Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_aes192_gmac_update(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                       const void *in, const uint64_t len, IMB_MGR *state);
+
+/**
+ * @brief Finalize AES-GMAC-192 tag computation and output the tag.
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [out] auth_tag        Authenticated Tag output
+ * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
+ *                              a multiple of 4 bytes). Valid values are 16
+ *                              (most likely), 12 or 8
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_aes192_gmac_finalize(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                         void *auth_tag, const uint64_t auth_tag_len, IMB_MGR *state);
+
+/**
+ * @brief Initialize a gcm_context_data structure to prepare for
+ *        AES-GMAC-256 tag computation.
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [in] iv               Pointer to IV structure
+ * @param [in] iv_len           Length of IV in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_aes256_gmac_init(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                     const void *iv, const uint64_t iv_len, IMB_MGR *state);
+
+/**
+ * @brief Process data for AES-GMAC-256 tag computation.
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [in] in               Pointer to source data
+ * @param [in] len              Length of source data in bytes
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_aes256_gmac_update(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                       const void *in, const uint64_t len, IMB_MGR *state);
+
+/**
+ * @brief Finalize AES-GMAC-256 tag computation and output the tag.
+ *
+ * @param [in] key_data         GCM expanded key data
+ * @param [in,out] context_data GCM operation context data
+ * @param [out] auth_tag        Authenticated Tag output
+ * @param [in] auth_tag_len     Authenticated Tag Length in bytes (must be
+ *                              a multiple of 4 bytes). Valid values are 16
+ *                              (most likely), 12 or 8
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_aes256_gmac_finalize(const struct gcm_key_data *key_data, struct gcm_context_data *context_data,
+                         void *auth_tag, const uint64_t auth_tag_len, IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * ZUC
+ * =========================================================
+ */
 
 /**
  * @brief Generation of ZUC-EEA3 Initialization Vector.
@@ -3434,6 +2700,7 @@ aes_gcm_pre_256_avx_gen4(const void *key, struct gcm_key_data *key_data);
  */
 IMB_DLL_EXPORT int
 zuc_eea3_iv_gen(const uint32_t count, const uint8_t bearer, const uint8_t dir, void *iv_ptr);
+
 /**
  * @brief Generation of ZUC-EIA3 Initialization Vector.
  *
@@ -3450,6 +2717,43 @@ IMB_DLL_EXPORT int
 zuc_eia3_iv_gen(const uint32_t count, const uint8_t bearer, const uint8_t dir, void *iv_ptr);
 
 /**
+ * @brief ZUC EEA3 Confidentiality function
+ *
+ * @param key   Pointer to an array of key pointers
+ * @param iv    Pointer to an array of 16-byte IV pointers
+ * @param src   Pointer to an array of plain/cipher text input pointers.
+ * @param dst   Pointer to an array of cipher/plain text output pointers.
+ * @param len   Pointer to an array of input data lengths in bytes.
+ * @param count Number of buffers to process.
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_zuc_eea3_n_buffer(const void *const *key, const void *const *iv, const void *const *src,
+                      void **dst, const uint32_t *len, const uint32_t count, IMB_MGR *state);
+
+/**
+ * @brief ZUC EIA3 Integrity function
+ *
+ * @param key   Pointer to an array of key pointers
+ * @param iv    Pointer to an array of 16-byte IV pointers
+ * @param src   Pointer to an array of plain/cipher text input pointers.
+ * @param len   Pointer to an array of input data lengths in bits.
+ * @param tag   Pointer to an array of Authenticated Tag output pointers (4 bytes each)
+ * @param count Number of buffers to process.
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ */
+IMB_DLL_EXPORT void
+imb_zuc_eia3_n_buffer(const void *const *key, const void *const *iv, const void *const *src,
+                      const uint32_t *len, uint32_t **tag, const uint32_t count, IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * KASUMI
+ * =========================================================
+ */
+
+/**
  * @brief Generation of KASUMI F8 Initialization Vector.
  *
  * @param [in] count   COUNT (4 bytes in Little Endian)
@@ -3463,6 +2767,7 @@ zuc_eia3_iv_gen(const uint32_t count, const uint8_t bearer, const uint8_t dir, v
  */
 IMB_DLL_EXPORT int
 kasumi_f8_iv_gen(const uint32_t count, const uint8_t bearer, const uint8_t dir, void *iv_ptr);
+
 /**
  * @brief Generation of KASUMI F9 Initialization Vector.
  *
@@ -3476,6 +2781,87 @@ kasumi_f8_iv_gen(const uint32_t count, const uint8_t bearer, const uint8_t dir, 
  */
 IMB_DLL_EXPORT int
 kasumi_f9_iv_gen(const uint32_t count, const uint32_t fresh, void *iv_ptr);
+
+/**
+ * @brief Kasumi byte-level f8 operation on a single buffer
+ *
+ * This function performs Kasumi f8 operation on a single buffer. The key has
+ * already been scheduled with kasumi_init_f8_key_sched().
+ * No extra bits are modified.
+ *
+ * @param [in]  exp_key  Context where the scheduled keys are stored
+ * @param [in]  iv       Initialization vector
+ * @param [in]  src      Input buffer
+ * @param [out] dst      Output buffer
+ * @param [in]  len      Length in BYTES
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ *
+ * @deprecated Please use the job API instead.
+ *
+ */
+IMB_DLL_EXPORT void
+imb_kasumi_f8_1_buffer(const kasumi_key_sched_t *exp_key, const uint64_t iv, const void *src,
+                       void *dst, const uint32_t len, IMB_MGR *state);
+
+/**
+ * @brief Kasumi bit-level f9 operation on a single buffer.
+ *
+ * The first QWORD of in represents the COUNT and FRESH, the last QWORD
+ * represents the DIRECTION and PADDING. (See 3GPP TS 35.201 v10.0 section 4)
+ *
+ * The key has already been scheduled with kasumi_init_f9_key_sched().
+ *
+ * @param [in]  exp_key Context where the scheduled keys are stored
+ * @param [in]  src     Input buffer
+ * @param [in]  len     Length in BYTES of the data to be hashed
+ * @param [out] tag     Computed digest
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ *
+ * @deprecated Please use the job API instead.
+ *
+ */
+IMB_DLL_EXPORT void
+imb_kasumi_f9_1_buffer(const kasumi_key_sched_t *exp_key, const void *src, const uint32_t len,
+                       void *tag, IMB_MGR *state);
+
+/**
+ * KASUMI F8 key schedule init function.
+ *
+ * @param [in]  key      Confidentiality key (expected in LE format)
+ * @param [out] exp_key  Key schedule context to be initialized
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ * @return 0 on success, -1 on failure
+ */
+IMB_DLL_EXPORT int
+imb_kasumi_init_f8_key_sched(const void *key, kasumi_key_sched_t *exp_key, IMB_MGR *state);
+
+/**
+ * KASUMI F9 key schedule init function.
+ *
+ * @param [in]  key      Integrity key (expected in LE format)
+ * @param [out] exp_key  Key schedule context to be initialized
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ * @return 0 on success, -1 on failure
+ */
+IMB_DLL_EXPORT int
+imb_kasumi_init_f9_key_sched(const void *key, kasumi_key_sched_t *exp_key, IMB_MGR *state);
+
+/**
+ * This function returns the size of the kasumi_key_sched_t, used
+ * to store the key schedule.
+ *
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ * @return size of kasumi_key_sched_t type success
+ */
+IMB_DLL_EXPORT size_t
+imb_kasumi_key_sched_size(IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * SNOW3G
+ * =========================================================
+ */
 
 /**
  * @brief Generation of SNOW3G F8 Initialization Vector.
@@ -3494,6 +2880,7 @@ kasumi_f9_iv_gen(const uint32_t count, const uint32_t fresh, void *iv_ptr);
  */
 IMB_DLL_EXPORT int
 snow3g_f8_iv_gen(const uint32_t count, const uint8_t bearer, const uint8_t dir, void *iv_ptr);
+
 /**
  * @brief Generation of SNOW3G F9 Initialization Vector.
  *
@@ -3511,14 +2898,267 @@ snow3g_f8_iv_gen(const uint32_t count, const uint8_t bearer, const uint8_t dir, 
  */
 IMB_DLL_EXPORT int
 snow3g_f9_iv_gen(const uint32_t count, const uint32_t fresh, const uint8_t dir, void *iv_ptr);
+
 /**
- * @brief Force clearing/zeroing of memory
+ * This function performs snow3g f8 operation on a single buffer. The key has
+ * already been scheduled with snow3g_init_key_sched().
  *
- * @param [in] mem   Pointer to memory address to clear
- * @param [in] size  Size of memory to clear (in bytes)
+ * @param [in]  exp_key      Context where the scheduled keys are stored
+ * @param [in]  iv           iv[3] = count
+ *                           iv[2] = (bearer << 27) | ((dir & 0x1) << 26)
+ *                           iv[1] = pIV[3]
+ *                           iv[0] = pIV[2]
+ * @param [in]  src          Input buffer
+ * @param [out] dst          Output buffer
+ * @param [in]  len          Length in bits of input buffer
+ * @param [in]  offset       Offset in input/output buffer (in bits)
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ *
+ * @deprecated Please use the job API instead.
  */
 IMB_DLL_EXPORT void
-imb_clear_mem(void *mem, const size_t size);
+imb_snow3g_f8_1_buffer_bit(const snow3g_key_schedule_t *exp_key, const void *iv, const void *src,
+                           void *dst, const uint32_t len, const uint32_t offset, IMB_MGR *state);
+
+/**
+ * This function performs snow3g f8 operation on a single buffer. The key has
+ * already been scheduled with snow3g_init_key_sched().
+ *
+ * @param [in]  exp_key      Context where the scheduled keys are stored
+ * @param [in]  iv           iv[3] = count
+ *                           iv[2] = (bearer << 27) | ((dir & 0x1) << 26)
+ *                           iv[1] = pIV[3]
+ *                           iv[0] = pIV[2]
+ * @param [in]  src          Input buffer
+ * @param [out] dst          Output buffer
+ * @param [in]  len          Length in bits of input buffer
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ *
+ * @deprecated Please use the job API instead.
+ */
+IMB_DLL_EXPORT void
+imb_snow3g_f8_1_buffer(const snow3g_key_schedule_t *exp_key, const void *iv, const void *src,
+                       void *dst, const uint32_t len, IMB_MGR *state);
+
+/**
+ * This function performs snow3g f8 operation on two buffers. They will
+ * be processed with the same key, which has already been scheduled with
+ * snow3g_init_key_sched().
+ *
+ * @param [in]  exp_key       Context where the scheduled keys are stored
+ * @param [in]  iv1           IV to use for buffer pBufferIn1
+ * @param [in]  iv2           IV to use for buffer pBufferIn2
+ * @param [in]  src1          Input buffer 1
+ * @param [out] dst1          Output buffer 1
+ * @param [in]  len1          Length in bytes of input buffer 1
+ * @param [in]  src2          Input buffer 2
+ * @param [out] dst2          Output buffer 2
+ * @param [in]  len2          Length in bytes of input buffer 2
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ *
+ * @deprecated Please use the job API instead.
+ */
+IMB_DLL_EXPORT void
+imb_snow3g_f8_2_buffer(const snow3g_key_schedule_t *exp_key, const void *iv1, const void *iv2,
+                       const void *src1, void *dst1, const uint32_t len1, const void *src2,
+                       void *dst2, const uint32_t len2, IMB_MGR *state);
+
+/**
+ * This function performs snow3g f8 operation on four buffers. They will
+ * be processed with the same key, which has already been scheduled with
+ * snow3g_init_key_sched().
+ *
+ * @param [in]  exp_key       Context where the scheduled keys are stored
+ * @param [in]  iv1           IV to use for buffer pBufferIn1
+ * @param [in]  iv2           IV to use for buffer pBufferIn2
+ * @param [in]  iv3           IV to use for buffer pBufferIn3
+ * @param [in]  iv4           IV to use for buffer pBufferIn4
+ * @param [in]  src1          Input buffer 1
+ * @param [out] dst1          Output buffer 1
+ * @param [in]  len1          Length in bytes of input buffer 1
+ * @param [in]  src2          Input buffer 2
+ * @param [out] dst2          Output buffer 2
+ * @param [in]  len2          Length in bytes of input buffer 2
+ * @param [in]  src3          Input buffer 3
+ * @param [out] dst3          Output buffer 3
+ * @param [in]  len3          Length in bytes of input buffer 3
+ * @param [in]  src4          Input buffer 4
+ * @param [out] dst4          Output buffer 4
+ * @param [in]  len4          Length in bytes of input buffer 4
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ *
+ * @deprecated Please use the job API instead.
+ */
+IMB_DLL_EXPORT void
+imb_snow3g_f8_4_buffer(const snow3g_key_schedule_t *exp_key, const void *iv1, const void *iv2,
+                       const void *iv3, const void *iv4, const void *src1, void *dst1,
+                       const uint32_t len1, const void *src2, void *dst2, const uint32_t len2,
+                       const void *src3, void *dst3, const uint32_t len3, const void *src4,
+                       void *dst4, const uint32_t len4, IMB_MGR *state);
+
+/**
+ * This function performs snow3g f8 operation on eight buffers. They will
+ * be processed with the same key, which has already been scheduled with
+ * snow3g_init_key_sched().
+ *
+ * @param [in]  exp_key       Context where the scheduled keys are stored
+ * @param [in]  iv1           IV to use for buffer pBufferIn1
+ * @param [in]  iv2           IV to use for buffer pBufferIn2
+ * @param [in]  iv3           IV to use for buffer pBufferIn3
+ * @param [in]  iv4           IV to use for buffer pBufferIn4
+ * @param [in]  iv5           IV to use for buffer pBufferIn5
+ * @param [in]  iv6           IV to use for buffer pBufferIn6
+ * @param [in]  iv7           IV to use for buffer pBufferIn7
+ * @param [in]  iv8           IV to use for buffer pBufferIn8
+ * @param [in]  src1          Input buffer 1
+ * @param [out] dst1          Output buffer 1
+ * @param [in]  len1          Length in bytes of input buffer 1
+ * @param [in]  src2          Input buffer 2
+ * @param [out] dst2          Output buffer 2
+ * @param [in]  len2          Length in bytes of input buffer 2
+ * @param [in]  src3          Input buffer 3
+ * @param [out] dst3          Output buffer 3
+ * @param [in]  len3          Length in bytes of input buffer 3
+ * @param [in]  src4          Input buffer 4
+ * @param [out] dst4          Output buffer 4
+ * @param [in]  len4          Length in bytes of input buffer 4
+ * @param [in]  src5          Input buffer 5
+ * @param [out] dst5          Output buffer 5
+ * @param [in]  len5          Length in bytes of input buffer 5
+ * @param [in]  src6          Input buffer 6
+ * @param [out] dst6          Output buffer 6
+ * @param [in]  len6          Length in bytes of input buffer 6
+ * @param [in]  src7          Input buffer 7
+ * @param [out] dst7          Output buffer 7
+ * @param [in]  len7          Length in bytes of input buffer 7
+ * @param [in]  src8          Input buffer 8
+ * @param [out] dst8          Output buffer 8
+ * @param [in]  len8          Length in bytes of input buffer 8
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ *
+ * @deprecated Please use the job API instead.
+ */
+IMB_DLL_EXPORT void
+imb_snow3g_f8_8_buffer(const snow3g_key_schedule_t *exp_key, const void *iv1, const void *iv2,
+                       const void *iv3, const void *iv4, const void *iv5, const void *iv6,
+                       const void *iv7, const void *iv8, const void *src1, void *dst1,
+                       const uint32_t len1, const void *src2, void *dst2, const uint32_t len2,
+                       const void *src3, void *dst3, const uint32_t len3, const void *src4,
+                       void *dst4, const uint32_t len4, const void *src5, void *dst5,
+                       const uint32_t len5, const void *src6, void *dst6, const uint32_t len6,
+                       const void *src7, void *dst7, const uint32_t len7, const void *src8,
+                       void *dst8, const uint32_t len8, IMB_MGR *state);
+
+/**
+ * This function performs snow3g f8 operation on eight buffers. They will
+ * be processed with individual keys, which have already been scheduled
+ * with snow3g_init_key_sched().
+ *
+ * @param [in]  exp_key  Array of 8 Contexts, where the scheduled keys
+ * are stored
+ * @param [in]  iv       Array of 8 IV values
+ * @param [in]  src      Array of 8 input buffers
+ * @param [out] dst      Array of 8 output buffers
+ * @param [in]  len      Array of 8 corresponding input buffer lengths
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ *
+ * @deprecated Please use the job API instead.
+ */
+IMB_DLL_EXPORT void
+imb_snow3g_f8_8_buffer_multikey(const snow3g_key_schedule_t *const exp_key[],
+                                const void *const iv[], const void *const src[], void *dst[],
+                                const uint32_t len[], IMB_MGR *state);
+
+/**
+ * This function performs snow3g f8 operation in parallel on N buffers. All
+ * input buffers can have different lengths and they will be processed with the
+ * same key, which has already been scheduled with snow3g_init_key_sched().
+ *
+ * @param [in]  exp_key  Context where the scheduled keys are stored
+ * @param [in]  iv       Array of IV values
+ * @param [in]  src      Array of input buffers
+ * @param [out] dst      Array of output buffers - out[0] set to NULL on failure
+ * @param [in]  len      Array of corresponding input buffer lengths
+ * @param [in]  count    Number of input buffers
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ *
+ * @deprecated Please use the job API instead.
+ */
+IMB_DLL_EXPORT void
+imb_snow3g_f8_n_buffer(const snow3g_key_schedule_t *exp_key, const void *const iv[],
+                       const void *const src[], void *dst[], const uint32_t len[],
+                       const uint32_t count, IMB_MGR *state);
+
+/**
+ * This function performs snow3g f8 operation in parallel on N buffers. All
+ * input buffers can have different lengths. Confidentiality keys can vary,
+ * schedules with snow3g_init_key_sched_multi().
+ *
+ * @param [in]  exp_key  Array of Contexts, where the scheduled keys are stored
+ * @param [in]  iv       Array of IV values
+ * @param [in]  src      Array of input buffers
+ * @param [out] dst      Array of output buffers
+ *                       - out[0] set to NULL on failure
+ * @param [in]  len      Array of corresponding input buffer lengths
+ * @param [in]  count    Number of input buffers
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ *
+ * @deprecated Please use the job API instead.
+ */
+IMB_DLL_EXPORT void
+imb_snow3g_f8_n_buffer_multikey(const snow3g_key_schedule_t *const exp_key[],
+                                const void *const iv[], const void *const src[], void *dst[],
+                                const uint32_t len[], const uint32_t count, IMB_MGR *state);
+
+/**
+ * This function performs a snow3g f9 operation on a single block of data. The
+ * key has already been scheduled with snow3g_init_f8_key_sched().
+ *
+ * @param [in]  exp_key  Context where the scheduled keys are stored
+ * @param [in]  iv       iv[3] = _BSWAP32(fresh^(dir<<15))
+ *                       iv[2] = _BSWAP32(count^(dir<<31))
+ *                       iv[1] = _BSWAP32(fresh)
+ *                       iv[0] = _BSWAP32(count)
+ *
+ * @param [in]  src      Input buffer
+ * @param [in]  len      Length in bits of the data to be hashed
+ * @param [out] tag      Computed digest
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ *
+ * @deprecated Please use the job API instead.
+ */
+IMB_DLL_EXPORT void
+imb_snow3g_f9_1_buffer(const snow3g_key_schedule_t *exp_key, const void *iv, const void *src,
+                       const uint64_t len, void *tag, IMB_MGR *state);
+
+/**
+ * Snow3g key schedule init function.
+ *
+ * @param [in]  key      Confidentiality/Integrity key (expected in LE format)
+ * @param [out] exp_key  Key schedule context to be initialized
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ * @return 0 on success
+ * @return -1 on error
+ */
+IMB_DLL_EXPORT int
+imb_snow3g_init_key_sched(const void *key, snow3g_key_schedule_t *exp_key, IMB_MGR *state);
+
+/**
+ * This function returns the size of the snow3g_key_schedule_t, used
+ * to store the key schedule.
+ *
+ * @param [in] state  Pointer to initialized IMB_MGR structure
+ * @return size of snow3g_key_schedule_t type
+ */
+IMB_DLL_EXPORT size_t
+imb_snow3g_key_sched_size(IMB_MGR *state);
+
+/*
+ * =========================================================
+ * =========================================================
+ * QUIC
+ * =========================================================
+ */
 
 /**
  * @brief Batch of GCM encrypt/decrypt operations with the same key
@@ -3610,167 +3250,256 @@ imb_quic_hp_chacha20(IMB_MGR *state, const void *key, void *dst_ptr_array[],
                      const void *const src_ptr_array[], const uint64_t num_packets);
 
 /**
- * @brief Sets up suite_id and session_id fields for selected cipher suite in
- *        provided \a job structure
+ * @brief Force clearing/zeroing of memory
  *
- * This is mandatory operation for BURST API as suite_id is used to speed up
- * job dispatch process.
- * This operation is optional but helpful for JOB API use case.
- *
- * 'session_id' field is for application use to optimize job set up process.
- * If JOB structure provided by library for a new operation has same session ID
- * as required for the next operation then only message pointers and sizes
- * need to be set up by the application. All other session fields are guaranteed
- * to be unmodified by the library:
- * - cipher mode
- * - cipher direction
- * - hash algorithm
- * - key size
- * - encrypt & decrypt key pointers
- * - suite_id
- * If allocated JOB structure contains different session ID then
- * all required session and crypto operation fields need to be set up.
- *
- * In connection oriented applications, a template filled-in job structure
- * can be cached within connection structure and reused in submit operations.
- *
- * For given set of parameters: cipher mode, cipher key size,
- * cipher direction and authentication mode, suite_id field is the same.
- *
- * @see IMB_SUBMIT_BURST()
- * @see IMB_SUBMIT_BURST_NOCHECK()
- * @see IMB_SUBMIT_JOB()
- * @see IMB_SUBMIT_JOB_NOCHECK()
- *
- * @param [in]     state   pointer to IMB_MGR
- * @param [in,out] job     pointer to prepared JOB structure
- *
- * @return Session ID value
- * @retval 0 on error
+ * @param [in] mem   Pointer to memory address to clear
+ * @param [in] size  Size of memory to clear (in bytes)
  */
-IMB_DLL_EXPORT uint32_t
-imb_set_session(IMB_MGR *state, IMB_JOB *job);
-
-/**
- * @brief Sets callback function to be invoked when running a self test.
- *
- * If \a cb_fn is NULL then self test callback functionality gets disabled.
- *
- * @param [in] state   pointer to IMB_MGR
- * @param [in] cb_fn   pointer to self test callback function
- * @param [in] cb_arg  argument to be passed to the callback function \a cb_fn
- *
- * @return Operation status of \a IMB_ERR type
- * @retval 0 on success
- */
-IMB_DLL_EXPORT int
-imb_self_test_set_cb(IMB_MGR *state, imb_self_test_cb_t cb_fn, void *cb_arg);
-
-/**
- * @brief Retrieves details of callback function to be invoked when running a self test.
- *
- * It may be useful to check status of self test callback or daisy chain
- * a few callbacks together.
- *
- * @param [in] state       pointer to IMB_MGR
- * @param [in,out] cb_fn   pointer to place pointer to self test callback function
- * @param [in,out] cb_arg  pointer to place callback function argument
- *
- * @return Operation status of \a IMB_ERR type
- * @retval 0 on success
- */
-IMB_DLL_EXPORT int
-imb_self_test_get_cb(IMB_MGR *state, imb_self_test_cb_t *cb_fn, void **cb_arg);
-
-/**
- * @brief API to get a string with the architecture type being used.
- *
- * init_mb_mgr_XXX() must be called before this function call,
- * where XXX is the desired architecture (can be auto).
- *
- * @param [in] state        pointer to IMB_MGR
- * @param [out] arch_type   string with architecture type
- * @param [out] description string with description of the arch type
- *
- * @return operation status.
- * @retval 0 success
- * @retval IMB_ERR_NULL_MBMGR invalid \a mb_mgr pointer
- */
-IMB_DLL_EXPORT int
-imb_get_arch_type_string(const IMB_MGR *state, const char **arch_type, const char **description);
-
-/**
- * @brief Retrieves minimum burst size for good performance on hash algorithms.
- *
- * Depending on the architecture used, this function returns the minimum
- * burst size to be used for good performance on the hash-only burst API.
- * Note that this will not return a value for best performance, but the minimum needed
- * to start maximizing the CPU core (i.e. enough buffers to utilize efficiently the CPU core
- * resources, taking into account that when buffers have different sizes, a higher burst size is
- * recommended).
- *
- * The output burst size may also be 1 (in case of a synchronous single-buffer implementation
- * or 0 if the algorithm is not supported by the API).
- *
- * @param [in] mb_mgr          pointer to IMB MGR structure
- * @param [in] algo            hash algorithm
- * @param [out] out_burst_size pointer to store min burst size
- *
- * @return operation status.
- * @retval 0 success
- * @retval IMB_ERR_HASH_ALGO  not supported \a algo
- * @retval IMB_ERR_NULL_MBMGR invalid \a mb_mgr pointer
- * @retval IMB_ERR_NULL_BURST invalid \a out_burst_size pointer
- */
-IMB_DLL_EXPORT int
-imb_hash_burst_get_size(const IMB_MGR *mb_mgr, const IMB_HASH_ALG algo, unsigned *out_burst_size);
-
-/**
- * @brief Retrieves minimum burst size for good performance on cipher algorithms.
- *
- * Depending on the architecture used, this function returns the minimum
- * burst size to be used for good performance on the cipher-only burst API.
- * The output burst size can be 1 (in case of a synchronous single-buffer implementation
- * or 0 if the algorithm is not supported by the API).
- *
- * @param [in] mb_mgr          pointer to IMB MGR structure
- * @param [in] cipher_mode     cipher mode
- * @param [out] out_burst_size pointer to store min burst size
- *
- * @return operation status.
- * @retval 0 success
- * @retval IMB_ERR_CIPHER_MODE  not supported \a algo
- * @retval IMB_ERR_NULL_MBMGR invalid \a mb_mgr pointer
- * @retval IMB_ERR_NULL_BURST invalid \a out_burst_size pointer
- */
-IMB_DLL_EXPORT int
-imb_cipher_burst_get_size(const IMB_MGR *mb_mgr, const IMB_CIPHER_MODE cipher_mode,
-                          unsigned *out_burst_size);
-
-/**
- * @brief Retrieves minimum burst size for good performance on AEAD algorithms.
- *
- * Depending on the architecture used, this function returns the minimum
- * burst size to be used for good performance on the AEAD burst API.
- * The output burst size can be 1 (in case of a synchronous single-buffer implementation
- * or 0 if the algorithm is not supported by the API).
- *
- * @param [in] mb_mgr          pointer to IMB MGR structure
- * @param [in] cipher_mode     cipher mode
- * @param [out] out_burst_size pointer to store min burst size
- *
- * @return operation status.
- * @retval 0 success
- * @retval IMB_ERR_CIPHER_MODE  not supported \a algo
- * @retval IMB_ERR_NULL_MBMGR invalid \a mb_mgr pointer
- * @retval IMB_ERR_NULL_BURST invalid \a out_burst_size pointer
- */
-IMB_DLL_EXPORT int
-imb_aead_burst_get_size(const IMB_MGR *mb_mgr, const IMB_CIPHER_MODE cipher_mode,
-                        unsigned *out_burst_size);
+IMB_DLL_EXPORT void
+imb_clear_mem(void *mem, const size_t size);
 
 #ifdef __cplusplus
 }
 #endif
+
+#ifndef NO_IPSECMB_V2_COMPATIBILITY
+/*
+ * Wrapper macros to secure compatibility between v3 and v2 API.
+ */
+#define IMB_GET_NEXT_JOB(_mgr)       imb_get_next_job(_mgr)
+#define IMB_SUBMIT_JOB(_mgr)         imb_submit_job(_mgr)
+#define IMB_SUBMIT_JOB_NOCHECK(_mgr) imb_submit_job_nocheck(_mgr)
+#define IMB_GET_COMPLETED_JOB(_mgr)  imb_get_completed_job(_mgr)
+#define IMB_FLUSH_JOB(_mgr)          imb_flush_job(_mgr)
+#define IMB_QUEUE_SIZE(_mgr)         imb_queue_size(_mgr)
+
+#define IMB_GET_NEXT_BURST(_mgr, _n_jobs, _jobs) imb_get_next_burst(_mgr, _n_jobs, _jobs)
+#define IMB_SUBMIT_BURST(_mgr, _n_jobs, _jobs)   imb_submit_burst(_mgr, _n_jobs, _jobs)
+#define IMB_SUBMIT_BURST_NOCHECK(_mgr, _n_jobs, _jobs)                                             \
+        imb_submit_burst_nocheck(_mgr, _n_jobs, _jobs)
+#define IMB_FLUSH_BURST(_mgr, _max_jobs, _jobs) imb_flush_burst(_mgr, _max_jobs, _jobs)
+
+#define IMB_SUBMIT_CIPHER_BURST(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)                    \
+        imb_submit_cipher_burst(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)
+#define IMB_SUBMIT_CIPHER_BURST_NOCHECK(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)            \
+        imb_submit_cipher_burst_nocheck(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)
+
+#define IMB_SUBMIT_HASH_BURST(_mgr, _jobs, _n_jobs, _hash)                                         \
+        imb_submit_hash_burst(_mgr, _jobs, _n_jobs, _hash)
+#define IMB_SUBMIT_HASH_BURST_NOCHECK(_mgr, _jobs, _n_jobs, _hash)                                 \
+        imb_submit_hash_burst_nocheck(_mgr, _jobs, _n_jobs, _hash)
+
+#define IMB_SUBMIT_AEAD_BURST(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)                      \
+        imb_submit_aead_burst(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)
+#define IMB_SUBMIT_AEAD_BURST_NOCHECK(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)              \
+        imb_submit_aead_burst_nocheck(_mgr, _jobs, _n_jobs, _cipher, _dir, _key_size)
+
+#define IMB_AES_KEYEXP_128(_mgr, _key, _enc_exp_key, _dec_exp_key)                                 \
+        imb_aes_keyexp_128(_key, _enc_exp_key, _dec_exp_key, _mgr)
+#define IMB_AES_KEYEXP_192(_mgr, _key, _enc_exp_key, _dec_exp_key)                                 \
+        imb_aes_keyexp_192(_key, _enc_exp_key, _dec_exp_key, _mgr)
+#define IMB_AES_KEYEXP_256(_mgr, _key, _enc_exp_key, _dec_exp_key)                                 \
+        imb_aes_keyexp_256(_key, _enc_exp_key, _dec_exp_key, _mgr)
+
+#define IMB_AES_CMAC_SUBKEY_GEN_128(_mgr, _exp_key, _key1, _key2)                                  \
+        imb_aes_cmac_subkey_gen_128(_exp_key, _key1, _key2, _mgr)
+#define IMB_AES_CMAC_SUBKEY_GEN_256(_mgr, _exp_key, _key1, _key2)                                  \
+        imb_aes_cmac_subkey_gen_256(_exp_key, _key1, _key2, _mgr)
+
+#define IMB_AES_XCBC_KEYEXP(_mgr, _key, _exp_key, _exp_key2, _exp_key3)                            \
+        imb_aes_xcbc_keyexp(_key, _exp_key, _exp_key2, _exp_key3, _mgr)
+#define IMB_DES_KEYSCHED(_mgr, _exp_key, _key) imb_des_keysched(_exp_key, _key, _mgr)
+
+#define IMB_SHA1_ONE_BLOCK(_mgr, _src, _tag) imb_sha1_one_block(_src, _tag, _mgr)
+#define IMB_SHA1(_mgr, _src, _length, _tag)  imb_sha1(_src, _length, _tag, _mgr)
+
+#define IMB_SHA224_ONE_BLOCK(_mgr, _src, _tag) imb_sha224_one_block(_src, _tag, _mgr)
+#define IMB_SHA224(_mgr, _src, _length, _tag)  imb_sha224(_src, _length, _tag, _mgr)
+
+#define IMB_SHA256_ONE_BLOCK(_mgr, _src, _tag) imb_sha256_one_block(_src, _tag, _mgr)
+#define IMB_SHA256(_mgr, _src, _length, _tag)  imb_sha256(_src, _length, _tag, _mgr)
+
+#define IMB_SHA384_ONE_BLOCK(_mgr, _src, _tag) imb_sha384_one_block(_src, _tag, _mgr)
+#define IMB_SHA384(_mgr, _src, _length, _tag)  imb_sha384(_src, _length, _tag, _mgr)
+
+#define IMB_SHA512_ONE_BLOCK(_mgr, _src, _tag) imb_sha512_one_block(_src, _tag, _mgr)
+#define IMB_SHA512(_mgr, _src, _length, _tag)  imb_sha512(_src, _length, _tag, _mgr)
+
+#define IMB_MD5_ONE_BLOCK(_mgr, _src, _tag) imb_md5_one_block(_src, _tag, _mgr)
+
+#define IMB_AES128_CFB_ONE(_mgr, _dst, _src, _iv, _exp_key, _len)                                  \
+        imb_aes128_cfb_one(_dst, _src, _iv, _exp_key, _len, _mgr)
+#define IMB_AES256_CFB_ONE(_mgr, _dst, _src, _iv, _exp_key, _len)                                  \
+        imb_aes256_cfb_one(_dst, _src, _iv, _exp_key, _len, _mgr)
+
+#define IMB_AES128_GCM_ENC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
+        imb_aes128_gcm_enc(_exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl, _mgr)
+#define IMB_AES192_GCM_ENC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
+        imb_aes192_gcm_enc(_exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl, _mgr)
+#define IMB_AES256_GCM_ENC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
+        imb_aes256_gcm_enc(_exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl, _mgr)
+
+#define IMB_AES128_GCM_DEC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
+        imb_aes128_gcm_dec(_exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl, _mgr)
+#define IMB_AES192_GCM_DEC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
+        imb_aes192_gcm_dec(_exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl, _mgr)
+#define IMB_AES256_GCM_DEC(_mgr, _exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl)  \
+        imb_aes256_gcm_dec(_exp_key, _ctx, _dst, _src, _len, _iv, _aad, _aadl, _tag, _tagl, _mgr)
+
+#define IMB_AES128_GCM_INIT(_mgr, _exp_key, _ctx, _iv, _aad, _aadl)                                \
+        imb_aes128_gcm_init(_exp_key, _ctx, _iv, _aad, _aadl, _mgr)
+#define IMB_AES192_GCM_INIT(_mgr, _exp_key, _ctx, _iv, _aad, _aadl)                                \
+        imb_aes192_gcm_init(_exp_key, _ctx, _iv, _aad, _aadl, _mgr)
+#define IMB_AES256_GCM_INIT(_mgr, _exp_key, _ctx, _iv, _aad, _aadl)                                \
+        imb_aes256_gcm_init(_exp_key, _ctx, _iv, _aad, _aadl, _mgr)
+
+#define IMB_AES128_GCM_INIT_VAR_IV(_mgr, _exp_key, _ctx, _iv, _ivl, _aad, _aadl)                   \
+        imb_aes128_gcm_init_var_iv(_exp_key, _ctx, _iv, _ivl, _aad, _aadl, _mgr)
+#define IMB_AES192_GCM_INIT_VAR_IV(_mgr, _exp_key, _ctx, _iv, _ivl, _aad, _aadl)                   \
+        imb_aes192_gcm_init_var_iv(_exp_key, _ctx, _iv, _ivl, _aad, _aadl, _mgr)
+#define IMB_AES256_GCM_INIT_VAR_IV(_mgr, _exp_key, _ctx, _iv, _ivl, _aad, _aadl)                   \
+        imb_aes256_gcm_init_var_iv(_exp_key, _ctx, _iv, _ivl, _aad, _aadl, _mgr)
+
+#define IMB_AES128_GCM_ENC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
+        imb_aes128_gcm_enc_update(_exp_key, _ctx, _dst, _src, _len, _mgr)
+#define IMB_AES192_GCM_ENC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
+        imb_aes192_gcm_enc_update(_exp_key, _ctx, _dst, _src, _len, _mgr)
+#define IMB_AES256_GCM_ENC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
+        imb_aes256_gcm_enc_update(_exp_key, _ctx, _dst, _src, _len, _mgr)
+
+#define IMB_AES128_GCM_DEC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
+        imb_aes128_gcm_dec_update(_exp_key, _ctx, _dst, _src, _len, _mgr)
+#define IMB_AES192_GCM_DEC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
+        imb_aes192_gcm_dec_update(_exp_key, _ctx, _dst, _src, _len, _mgr)
+#define IMB_AES256_GCM_DEC_UPDATE(_mgr, _exp_key, _ctx, _dst, _src, _len)                          \
+        imb_aes256_gcm_dec_update(_exp_key, _ctx, _dst, _src, _len, _mgr)
+
+#define IMB_AES128_GCM_ENC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
+        imb_aes128_gcm_enc_finalize(_exp_key, _ctx, _tag, _tagl, _mgr)
+#define IMB_AES192_GCM_ENC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
+        imb_aes192_gcm_enc_finalize(_exp_key, _ctx, _tag, _tagl, _mgr)
+#define IMB_AES256_GCM_ENC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
+        imb_aes256_gcm_enc_finalize(_exp_key, _ctx, _tag, _tagl, _mgr)
+
+#define IMB_AES128_GCM_DEC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
+        imb_aes128_gcm_dec_finalize(_exp_key, _ctx, _tag, _tagl, _mgr)
+#define IMB_AES192_GCM_DEC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
+        imb_aes192_gcm_dec_finalize(_exp_key, _ctx, _tag, _tagl, _mgr)
+#define IMB_AES256_GCM_DEC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                             \
+        imb_aes256_gcm_dec_finalize(_exp_key, _ctx, _tag, _tagl, _mgr)
+
+#define IMB_AES128_GMAC_INIT(_mgr, _exp_key, _ctx, _iv, _ivl)                                      \
+        imb_aes128_gmac_init(_exp_key, _ctx, _iv, _ivl, _mgr)
+#define IMB_AES192_GMAC_INIT(_mgr, _exp_key, _ctx, _iv, _ivl)                                      \
+        imb_aes192_gmac_init(_exp_key, _ctx, _iv, _ivl, _mgr)
+#define IMB_AES256_GMAC_INIT(_mgr, _exp_key, _ctx, _iv, _ivl)                                      \
+        imb_aes256_gmac_init(_exp_key, _ctx, _iv, _ivl, _mgr)
+
+#define IMB_AES128_GMAC_UPDATE(_mgr, _exp_key, _ctx, _src, _len)                                   \
+        imb_aes128_gmac_update(_exp_key, _ctx, _src, _len, _mgr)
+#define IMB_AES192_GMAC_UPDATE(_mgr, _exp_key, _ctx, _src, _len)                                   \
+        imb_aes192_gmac_update(_exp_key, _ctx, _src, _len, _mgr)
+#define IMB_AES256_GMAC_UPDATE(_mgr, _exp_key, _ctx, _src, _len)                                   \
+        imb_aes256_gmac_update(_exp_key, _ctx, _src, _len, _mgr)
+
+#define IMB_AES128_GMAC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                                \
+        imb_aes128_gmac_finalize(_exp_key, _ctx, _tag, _tagl, _mgr)
+#define IMB_AES192_GMAC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                                \
+        imb_aes192_gmac_finalize(_exp_key, _ctx, _tag, _tagl, _mgr)
+#define IMB_AES256_GMAC_FINALIZE(_mgr, _exp_key, _ctx, _tag, _tagl)                                \
+        imb_aes256_gmac_finalize(_exp_key, _ctx, _tag, _tagl, _mgr)
+
+#define IMB_AES128_GCM_PRECOMP(_mgr, _key) imb_aes128_gcm_precomp(_key, _mgr)
+#define IMB_AES192_GCM_PRECOMP(_mgr, _key) imb_aes192_gcm_precomp(_key, _mgr)
+#define IMB_AES256_GCM_PRECOMP(_mgr, _key) imb_aes256_gcm_precomp(_key, _mgr)
+
+#define IMB_AES128_GCM_PRE(_mgr, _key, _exp_key) imb_aes128_gcm_pre(_key, _exp_key, _mgr)
+#define IMB_AES192_GCM_PRE(_mgr, _key, _exp_key) imb_aes192_gcm_pre(_key, _exp_key, _mgr)
+#define IMB_AES256_GCM_PRE(_mgr, _key, _exp_key) imb_aes256_gcm_pre(_key, _exp_key, _mgr)
+
+#define IMB_GHASH_PRE(_mgr, _key, _exp_key) imb_ghash_pre(_key, _exp_key, _mgr)
+#define IMB_GHASH(_mgr, _exp_key, _src, _len, _tag, _tagl)                                         \
+        imb_ghash(_exp_key, _src, _len, _tag, _tagl, _mgr)
+
+#define IMB_CHACHA20_POLY1305_INIT(_mgr, _key, _ctx, _iv, _aad, _aadl)                             \
+        imb_chacha20_poly1305_init(_key, _ctx, _iv, _aad, _aadl, _mgr)
+
+#define IMB_CHACHA20_POLY1305_ENC_UPDATE(_mgr, _key, _ctx, _dst, _src, _len)                       \
+        imb_chacha20_poly1305_enc_update(_key, _ctx, _dst, _src, _len, _mgr)
+#define IMB_CHACHA20_POLY1305_DEC_UPDATE(_mgr, _key, _ctx, _dst, _src, _len)                       \
+        imb_chacha20_poly1305_dec_update(_key, _ctx, _dst, _src, _len, _mgr)
+
+#define IMB_CHACHA20_POLY1305_ENC_FINALIZE(_mgr, _ctx, _tag, _tagl)                                \
+        imb_chacha20_poly1305_enc_finalize(_ctx, _tag, _tagl, _mgr)
+
+#define IMB_CHACHA20_POLY1305_DEC_FINALIZE(_mgr, _ctx, _tag, _tagl)                                \
+        imb_chacha20_poly1305_dec_finalize(_ctx, _tag, _tagl, _mgr)
+
+#define IMB_ZUC_EEA3_N_BUFFER(_mgr, _key, _iv, _src, _dst, _len, _count)                           \
+        imb_zuc_eea3_n_buffer(_key, _iv, _src, _dst, _len, _count, _mgr)
+#define IMB_ZUC_EIA3_N_BUFFER(_mgr, _key, _iv, _src, _len, _tag, _count)                           \
+        imb_zuc_eia3_n_buffer(_key, _iv, _src, _len, _tag, _count, _mgr)
+
+#define IMB_KASUMI_F8_1_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len)                              \
+        imb_kasumi_f8_1_buffer(_exp_key, _iv, _src, _dst, _len, _mgr)
+#define IMB_KASUMI_F9_1_BUFFER(_mgr, _exp_key, _src, _len, _tag)                                   \
+        imb_kasumi_f9_1_buffer(_exp_key, _src, _len, _tag, _mgr)
+#define IMB_KASUMI_INIT_F8_KEY_SCHED(_mgr, _key, _exp_key)                                         \
+        imb_kasumi_init_f8_key_sched(_key, _exp_key, _mgr)
+#define IMB_KASUMI_INIT_F9_KEY_SCHED(_mgr, _key, _exp_key)                                         \
+        imb_kasumi_init_f9_key_sched(_key, _exp_key, _mgr)
+#define IMB_KASUMI_KEY_SCHED_SIZE(_mgr) imb_kasumi_key_sched_size(_mgr)
+
+#define IMB_SNOW3G_F8_1_BUFFER_BIT(_mgr, _exp_key, _iv, _src, _dst, _len, _offset)                 \
+        imb_snow3g_f8_1_buffer_bit(_exp_key, _iv, _src, _dst, _len, _offset, _mgr)
+#define IMB_SNOW3G_F8_1_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len)                              \
+        imb_snow3g_f8_1_buffer(_exp_key, _iv, _src, _dst, _len, _mgr)
+#define IMB_SNOW3G_F8_2_BUFFER(_mgr, _exp_key, _iv1, _iv2, _src1, _dst1, _len1, _src2, _dst2,      \
+                               _len2)                                                              \
+        imb_snow3g_f8_2_buffer(_exp_key, _iv1, _iv2, _src1, _dst1, _len1, _src2, _dst2, _len2, _mgr)
+#define IMB_SNOW3G_F8_4_BUFFER(_mgr, _exp_key, _iv1, _iv2, _iv3, _iv4, _src1, _dst1, _len1, _src2, \
+                               _dst2, _len2, _src3, _dst3, _len3, _src4, _dst4, _len4)             \
+        imb_snow3g_f8_4_buffer(_exp_key, _iv1, _iv2, _iv3, _iv4, _src1, _dst1, _len1, _src2,       \
+                               _dst2, _len2, _src3, _dst3, _len3, _src4, _dst4, _len4, _mgr)
+#define IMB_SNOW3G_F8_8_BUFFER(_mgr, _exp_key, _iv1, _iv2, _iv3, _iv4, _iv5, _iv6, _iv7, _iv8,     \
+                               _src1, _dst1, _len1, _src2, _dst2, _len2, _src3, _dst3, _len3,      \
+                               _src4, _dst4, _len4, _src5, _dst5, _len5, _src6, _dst6, _len6,      \
+                               _src7, _dst7, _len7, _src8, _dst8, _len8)                           \
+        imb_snow3g_f8_8_buffer(_exp_key, _iv1, _iv2, _iv3, _iv4, _iv5, _iv6, _iv7, _iv8, _src1,    \
+                               _dst1, _len1, _src2, _dst2, _len2, _src3, _dst3, _len3, _src4,      \
+                               _dst4, _len4, _src5, _dst5, _len5, _src6, _dst6, _len6, _src7,      \
+                               _dst7, _len7, _src8, _dst8, _len8, _mgr)
+#define IMB_SNOW3G_F8_8_BUFFER_MULTIKEY(_mgr, _exp_key, _iv, _src, _dst, _len)                     \
+        imb_snow3g_f8_8_buffer_multikey(_exp_key, _iv, _src, _dst, _len, _mgr)
+#define IMB_SNOW3G_F8_N_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len, _count)                      \
+        imb_snow3g_f8_n_buffer(_exp_key, _iv, _src, _dst, _len, _count, _mgr)
+#define IMB_SNOW3G_F8_N_BUFFER_MULTIKEY(_mgr, _exp_key, _iv, _src, _dst, _len, _count)             \
+        imb_snow3g_f8_n_buffer_multikey(_exp_key, _iv, _src, _dst, _len, _count, _mgr)
+#define IMB_SNOW3G_F9_1_BUFFER(_mgr, _exp_key, _iv, _src, _len, _tag)                              \
+        imb_snow3g_f9_1_buffer(_exp_key, _iv, _src, _len, _tag, _mgr)
+#define IMB_SNOW3G_INIT_KEY_SCHED(_mgr, _key, _exp_key)                                            \
+        imb_snow3g_init_key_sched(_key, _exp_key, _mgr)
+#define IMB_SNOW3G_KEY_SCHED_SIZE(_mgr) imb_snow3g_key_sched_size(_mgr)
+
+#define IMB_HEC_32(_mgr, _src) imb_hec_32(_src, _mgr)
+#define IMB_HEC_64(_mgr, _src) imb_hec_64(_src, _mgr)
+
+#define IMB_CRC32_ETHERNET_FCS(_mgr, _src, _len)     imb_crc32_ethernet_fcs(_src, _len, _mgr)
+#define IMB_CRC16_X25(_mgr, _src, _len)              imb_crc16_x25(_src, _len, _mgr)
+#define IMB_CRC32_SCTP(_mgr, _src, _len)             imb_crc32_sctp(_src, _len, _mgr)
+#define IMB_CRC24_LTE_A(_mgr, _src, _len)            imb_crc24_lte_a(_src, _len, _mgr)
+#define IMB_CRC24_LTE_B(_mgr, _src, _len)            imb_crc24_lte_b(_src, _len, _mgr)
+#define IMB_CRC16_FP_DATA(_mgr, _src, _len)          imb_crc16_fp_data(_src, _len, _mgr)
+#define IMB_CRC11_FP_HEADER(_mgr, _src, _len)        imb_crc11_fp_header(_src, _len, _mgr)
+#define IMB_CRC7_FP_HEADER(_mgr, _src, _len)         imb_crc7_fp_header(_src, _len, _mgr)
+#define IMB_CRC10_IUUP_DATA(_mgr, _src, _len)        imb_crc10_iuup_data(_src, _len, _mgr)
+#define IMB_CRC6_IUUP_HEADER(_mgr, _src, _len)       imb_crc6_iuup_header(_src, _len, _mgr)
+#define IMB_CRC32_WIMAX_OFDMA_DATA(_mgr, _src, _len) imb_crc32_wimax_ofdma_data(_src, _len, _mgr)
+#define IMB_CRC8_WIMAX_OFDMA_HCS(_mgr, _src, _len)   imb_crc8_wimax_ofdma_hcs(_src, _len, _mgr)
+
+#define IMB_SM4_KEYEXP(_mgr, _key, _exp_enc_key, _exp_dec_key)                                     \
+        imb_sm4_keyexp(_key, _exp_enc_key, _exp_dec_key, _mgr)
+
+#endif /* NO_IPSECMB_V2_COMPATIBILITY */
 
 #endif /* IMB_IPSEC_MB_H */

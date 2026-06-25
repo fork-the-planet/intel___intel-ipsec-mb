@@ -29,6 +29,7 @@
 #define SNOW3G_SUBMIT_H
 
 #include "intel-ipsec-mb.h"
+#include "mb_mgr.h"
 
 static inline IMB_JOB *
 def_submit_snow3g_uea2_job(IMB_MGR *state, IMB_JOB *job)

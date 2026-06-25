@@ -207,42 +207,33 @@ update_flags_and_archs(const char *arg, uint8_t arch_support[IMB_ARCH_NUM], uint
 int
 detect_arch(uint8_t arch_support[IMB_ARCH_NUM], const uint64_t flags)
 {
-        const uint64_t detect_sse = IMB_FEATURE_SSE4_2 | IMB_FEATURE_CMOV | IMB_FEATURE_AESNI;
-        const uint64_t detect_avx = IMB_FEATURE_AVX | IMB_FEATURE_CMOV | IMB_FEATURE_AESNI;
-        const uint64_t detect_avx2 = IMB_FEATURE_AVX2 | detect_avx;
-        const uint64_t detect_avx512 = IMB_FEATURE_AVX512_SKX | detect_avx2;
-        const uint64_t detect_avx10 = IMB_FEATURE_AVX10_2 | detect_avx512;
-
-        IMB_MGR *p_mgr = NULL;
-        IMB_ARCH arch_id;
+        const uint64_t detect_sse = IMB_CPUFLAGS_SSE;
+        const uint64_t detect_avx2 = IMB_CPUFLAGS_AVX2;
+        const uint64_t detect_avx512 = IMB_CPUFLAGS_AVX512;
+        const uint64_t detect_avx10 = IMB_CPUFLAGS_AVX10;
 
         if (arch_support == NULL) {
                 fprintf(stderr, "Inputs not passed correctly\n");
                 return -1;
         }
 
-        for (arch_id = IMB_ARCH_SSE; arch_id < IMB_ARCH_NUM; arch_id++)
+        for (IMB_ARCH arch_id = IMB_ARCH_SSE; arch_id < IMB_ARCH_NUM; arch_id++)
                 arch_support[arch_id] = 1;
 
-        p_mgr = alloc_mb_mgr(flags);
-        if (p_mgr == NULL) {
-                fprintf(stderr, "Architecture detect error!\n");
-                return -1;
-        }
+        (void) flags;
+        const uint64_t features = imb_get_cpu_features();
 
-        if ((p_mgr->features & detect_avx10) != detect_avx10)
+        if ((features & detect_avx10) != detect_avx10)
                 arch_support[IMB_ARCH_AVX10] = 0;
 
-        if ((p_mgr->features & detect_avx512) != detect_avx512)
+        if ((features & detect_avx512) != detect_avx512)
                 arch_support[IMB_ARCH_AVX512] = 0;
 
-        if ((p_mgr->features & detect_avx2) != detect_avx2)
+        if ((features & detect_avx2) != detect_avx2)
                 arch_support[IMB_ARCH_AVX2] = 0;
 
-        if ((p_mgr->features & detect_sse) != detect_sse)
+        if ((features & detect_sse) != detect_sse)
                 arch_support[IMB_ARCH_SSE] = 0;
-
-        free_mb_mgr(p_mgr);
 
         if (arch_support[IMB_ARCH_SSE] == 0 && arch_support[IMB_ARCH_AVX2] == 0 &&
             arch_support[IMB_ARCH_AVX512] == 0 && arch_support[IMB_ARCH_AVX10] == 0) {

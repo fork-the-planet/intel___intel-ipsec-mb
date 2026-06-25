@@ -31,6 +31,7 @@
 /* synchronous cipher and hash burst API */
 
 #include "intel-ipsec-mb.h"
+#include "mb_mgr.h"
 #include "include/error.h"
 #include "include/mb_mgr_job_check.h" /* is_job_invalid() */
 

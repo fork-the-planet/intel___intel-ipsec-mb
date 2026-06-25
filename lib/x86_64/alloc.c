@@ -46,12 +46,13 @@
 
 #define OOO_INFO(imb_mgr_ooo_ptr_name__, ooo_mgr_type__)                                           \
         { offsetof(IMB_MGR, imb_mgr_ooo_ptr_name__), ALIGN(sizeof(ooo_mgr_type__), ALIGNMENT),     \
-          offsetof(ooo_mgr_type__, road_block) }
+          offsetof(ooo_mgr_type__, road_block), #imb_mgr_ooo_ptr_name__ }
 
 const struct {
         size_t ooo_ptr_offset;
         size_t ooo_aligned_size;
         size_t road_block_offset;
+        const char *name;
 } ooo_mgr_table[] = { OOO_INFO(aes128_ooo, MB_MGR_AES_OOO),
                       OOO_INFO(aes192_ooo, MB_MGR_AES_OOO),
                       OOO_INFO(aes256_ooo, MB_MGR_AES_OOO),
@@ -199,13 +200,18 @@ imb_set_pointers_mb_mgr(void *mem_ptr, const uint64_t flags, const unsigned rese
         uint8_t *ptr8 = (uint8_t *) ptr;
         uint8_t *free_ptr = &ptr8[ALIGN(sizeof(IMB_MGR), ALIGNMENT)];
         const size_t mem_size = imb_get_mb_mgr_size();
-        unsigned i;
 
         if (reset_mgr) {
                 /* Zero out MB_MGR memory */
                 memset(mem_ptr, 0, mem_size);
-        } else {
-                IMB_ARCH used_arch = (IMB_ARCH) ptr->used_arch;
+        }
+
+        imb_set_errno(ptr, 0);
+        ptr->flags = flags; /* save the flags for future use in init */
+        ptr->features = cpu_feature_adjust(flags, cpu_feature_detect());
+
+        if (!reset_mgr) {
+                const IMB_ARCH used_arch = (IMB_ARCH) ptr->used_arch;
 
                 /* Reset function pointers from previously used architecture */
                 switch (used_arch) {
@@ -218,17 +224,16 @@ imb_set_pointers_mb_mgr(void *mem_ptr, const uint64_t flags, const unsigned rese
                 case IMB_ARCH_AVX512:
                         init_mb_mgr_avx512_internal(ptr, 0);
                         break;
+                case IMB_ARCH_AVX10:
+                        init_mb_mgr_avx10_internal(ptr, 0);
+                        break;
                 default:
                         break;
                 }
         }
 
-        imb_set_errno(ptr, 0);
-        ptr->flags = flags; /* save the flags for future use in init */
-        ptr->features = cpu_feature_adjust(flags, cpu_feature_detect());
-
         /* Set OOO pointers */
-        for (i = 0; i < IMB_DIM(ooo_mgr_table); i++) {
+        for (unsigned i = 0; i < IMB_DIM(ooo_mgr_table); i++) {
                 set_ooo_ptr(ptr, ooo_mgr_table[i].ooo_ptr_offset, free_ptr);
                 free_ptr = &free_ptr[ooo_mgr_table[i].ooo_aligned_size];
                 IMB_ASSERT((uintptr_t) (free_ptr - ptr8) <= mem_size);
@@ -307,4 +312,69 @@ free_mb_mgr(IMB_MGR *ptr)
 
         /* Free IMB_MGR */
         free_mem(ptr);
+}
+
+IMB_DLL_EXPORT int
+imb_get_ooo_mgr(IMB_MGR *state, const int index, void **ooo_ptr, size_t *ooo_size,
+                const char **ooo_name)
+{
+        if (state == NULL) {
+                imb_set_errno(NULL, EINVAL);
+                return EINVAL;
+        }
+
+        imb_set_errno(state, 0);
+
+        if (index < 0) {
+                /* return information about IMB_MGR structure */
+                if (ooo_ptr != NULL)
+                        *ooo_ptr = (void *) state;
+
+                if (ooo_name != NULL)
+                        *ooo_name = "IMB_MGR";
+
+                if (ooo_size != NULL)
+                        *ooo_size = sizeof(IMB_MGR);
+
+                return 0;
+        }
+
+        if (index >= (int) IMB_DIM(ooo_mgr_table)) {
+                imb_set_errno(state, EINVAL);
+                return EINVAL;
+        }
+
+        /* Get the pointer to the OOO manager */
+        void *ooo_mgr = (void *) get_ooo_ptr(state, ooo_mgr_table[index].ooo_ptr_offset);
+
+        if (ooo_ptr != NULL)
+                *ooo_ptr = ooo_mgr;
+
+        if (ooo_name != NULL)
+                *ooo_name = ooo_mgr_table[index].name;
+
+        /* Calculate size if OOO manager exists */
+        if (ooo_size != NULL) {
+                /* Search for the end-of-OOO marker */
+                const uint8_t *ptr8 = (const uint8_t *) ooo_mgr;
+
+                /* Max OOO manager size */
+                const size_t max_size = ooo_mgr_table[index].ooo_aligned_size;
+                const size_t stop_offset = max_size - sizeof(uint64_t);
+                const size_t start_offset = (max_size > 256) ? max_size - 256 : 0;
+
+                for (size_t offset = start_offset; offset < stop_offset; offset++) {
+                        const uint64_t *ptr64 = (const uint64_t *) &ptr8[offset];
+
+                        if (*ptr64 == IMB_OOO_ROAD_BLOCK) {
+                                *ooo_size = offset + sizeof(uint64_t);
+                                return 0;
+                        }
+                }
+
+                /* Marker not found, return max size */
+                *ooo_size = max_size;
+        }
+
+        return 0;
 }

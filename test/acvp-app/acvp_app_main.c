@@ -321,11 +321,6 @@ aes_gcm_handler(ACVP_TEST_CASE *test_case)
 {
         ACVP_SYM_CIPHER_TC *tc;
         IMB_JOB *job = NULL;
-        aes_gcm_init_var_iv_t gcm_init_var_iv = mb_mgr->gcm128_init_var_iv;
-        aes_gcm_enc_dec_update_t gcm_update_enc = mb_mgr->gcm128_enc_update;
-        aes_gcm_enc_dec_finalize_t gcm_finalize_enc = mb_mgr->gcm128_enc_finalize;
-        aes_gcm_enc_dec_update_t gcm_update_dec = mb_mgr->gcm128_dec_update;
-        aes_gcm_enc_dec_finalize_t gcm_finalize_dec = mb_mgr->gcm128_dec_finalize;
         struct gcm_key_data key;
         struct gcm_context_data ctx;
 
@@ -354,30 +349,7 @@ aes_gcm_handler(ACVP_TEST_CASE *test_case)
                 return ACVP_CRYPTO_MODULE_FAIL;
         }
 
-        if (direct_api == 1) {
-                switch (tc->key_len) {
-                case 128:
-                        /* Function pointers already set for 128-bit key */
-                        break;
-                case 192:
-                        gcm_init_var_iv = mb_mgr->gcm192_init_var_iv;
-                        gcm_update_enc = mb_mgr->gcm192_enc_update;
-                        gcm_finalize_enc = mb_mgr->gcm192_enc_finalize;
-                        gcm_update_dec = mb_mgr->gcm192_dec_update;
-                        gcm_finalize_dec = mb_mgr->gcm192_dec_finalize;
-                        break;
-                case 256:
-                        gcm_init_var_iv = mb_mgr->gcm256_init_var_iv;
-                        gcm_update_enc = mb_mgr->gcm256_enc_update;
-                        gcm_finalize_enc = mb_mgr->gcm256_enc_finalize;
-                        gcm_update_dec = mb_mgr->gcm256_dec_update;
-                        gcm_finalize_dec = mb_mgr->gcm256_dec_finalize;
-                        break;
-                default:
-                        fprintf(stderr, "Unsupported AES key length\n");
-                        return ACVP_CRYPTO_MODULE_FAIL;
-                }
-        } else {
+        if (direct_api != 1) {
                 job = IMB_GET_NEXT_JOB(mb_mgr);
                 job->key_len_in_bytes = tc->key_len >> 3;
                 job->cipher_mode = IMB_CIPHER_GCM;
@@ -395,9 +367,35 @@ aes_gcm_handler(ACVP_TEST_CASE *test_case)
 
         if (tc->direction == ACVP_SYM_CIPH_DIR_ENCRYPT) {
                 if (direct_api == 1) {
-                        gcm_init_var_iv(&key, &ctx, tc->iv, tc->iv_len, tc->aad, tc->aad_len);
-                        gcm_update_enc(&key, &ctx, tc->ct, tc->pt, tc->pt_len);
-                        gcm_finalize_enc(&key, &ctx, tc->tag, tc->tag_len);
+                        switch (tc->key_len) {
+                        case 128:
+                                imb_aes128_gcm_init_var_iv(&key, &ctx, tc->iv, tc->iv_len, tc->aad,
+                                                           tc->aad_len, mb_mgr);
+                                imb_aes128_gcm_enc_update(&key, &ctx, tc->ct, tc->pt, tc->pt_len,
+                                                          mb_mgr);
+                                imb_aes128_gcm_enc_finalize(&key, &ctx, tc->tag, tc->tag_len,
+                                                            mb_mgr);
+                                break;
+                        case 192:
+                                imb_aes192_gcm_init_var_iv(&key, &ctx, tc->iv, tc->iv_len, tc->aad,
+                                                           tc->aad_len, mb_mgr);
+                                imb_aes192_gcm_enc_update(&key, &ctx, tc->ct, tc->pt, tc->pt_len,
+                                                          mb_mgr);
+                                imb_aes192_gcm_enc_finalize(&key, &ctx, tc->tag, tc->tag_len,
+                                                            mb_mgr);
+                                break;
+                        case 256:
+                                imb_aes256_gcm_init_var_iv(&key, &ctx, tc->iv, tc->iv_len, tc->aad,
+                                                           tc->aad_len, mb_mgr);
+                                imb_aes256_gcm_enc_update(&key, &ctx, tc->ct, tc->pt, tc->pt_len,
+                                                          mb_mgr);
+                                imb_aes256_gcm_enc_finalize(&key, &ctx, tc->tag, tc->tag_len,
+                                                            mb_mgr);
+                                break;
+                        default:
+                                fprintf(stderr, "Unsupported AES key length\n");
+                                return ACVP_CRYPTO_MODULE_FAIL;
+                        }
                 } else {
                         job->src = tc->pt;
                         job->dst = tc->ct;
@@ -419,9 +417,35 @@ aes_gcm_handler(ACVP_TEST_CASE *test_case)
                 uint8_t res_tag[MAX_TAG_LENGTH] = { 0 };
 
                 if (direct_api == 1) {
-                        gcm_init_var_iv(&key, &ctx, tc->iv, tc->iv_len, tc->aad, tc->aad_len);
-                        gcm_update_dec(&key, &ctx, tc->pt, tc->ct, tc->ct_len);
-                        gcm_finalize_dec(&key, &ctx, res_tag, tc->tag_len);
+                        switch (tc->key_len) {
+                        case 128:
+                                imb_aes128_gcm_init_var_iv(&key, &ctx, tc->iv, tc->iv_len, tc->aad,
+                                                           tc->aad_len, mb_mgr);
+                                imb_aes128_gcm_dec_update(&key, &ctx, tc->pt, tc->ct, tc->ct_len,
+                                                          mb_mgr);
+                                imb_aes128_gcm_dec_finalize(&key, &ctx, res_tag, tc->tag_len,
+                                                            mb_mgr);
+                                break;
+                        case 192:
+                                imb_aes192_gcm_init_var_iv(&key, &ctx, tc->iv, tc->iv_len, tc->aad,
+                                                           tc->aad_len, mb_mgr);
+                                imb_aes192_gcm_dec_update(&key, &ctx, tc->pt, tc->ct, tc->ct_len,
+                                                          mb_mgr);
+                                imb_aes192_gcm_dec_finalize(&key, &ctx, res_tag, tc->tag_len,
+                                                            mb_mgr);
+                                break;
+                        case 256:
+                                imb_aes256_gcm_init_var_iv(&key, &ctx, tc->iv, tc->iv_len, tc->aad,
+                                                           tc->aad_len, mb_mgr);
+                                imb_aes256_gcm_dec_update(&key, &ctx, tc->pt, tc->ct, tc->ct_len,
+                                                          mb_mgr);
+                                imb_aes256_gcm_dec_finalize(&key, &ctx, res_tag, tc->tag_len,
+                                                            mb_mgr);
+                                break;
+                        default:
+                                fprintf(stderr, "Unsupported AES key length\n");
+                                return ACVP_CRYPTO_MODULE_FAIL;
+                        }
                 } else {
                         job->src = tc->ct;
                         job->dst = tc->pt;
@@ -456,9 +480,6 @@ aes_gmac_handler(ACVP_TEST_CASE *test_case)
 {
         ACVP_SYM_CIPHER_TC *tc;
         IMB_JOB *job = NULL;
-        aes_gmac_init_t gmac_init_var = mb_mgr->gmac128_init;
-        aes_gmac_update_t gmac_update = mb_mgr->gmac128_update;
-        aes_gmac_finalize_t gmac_finalize = mb_mgr->gmac128_finalize;
         struct gcm_key_data key;
         struct gcm_context_data ctx;
         IMB_HASH_ALG hash_mode;
@@ -491,26 +512,7 @@ aes_gmac_handler(ACVP_TEST_CASE *test_case)
                 return ACVP_CRYPTO_MODULE_FAIL;
         }
 
-        if (direct_api == 1) {
-                switch (tc->key_len) {
-                case 128:
-                        /* Function pointers already set for 128-bit key */
-                        break;
-                case 192:
-                        gmac_init_var = mb_mgr->gmac192_init;
-                        gmac_update = mb_mgr->gmac192_update;
-                        gmac_finalize = mb_mgr->gmac192_finalize;
-                        break;
-                case 256:
-                        gmac_init_var = mb_mgr->gmac256_init;
-                        gmac_update = mb_mgr->gmac256_update;
-                        gmac_finalize = mb_mgr->gmac256_finalize;
-                        break;
-                default:
-                        fprintf(stderr, "Unsupported AES key length\n");
-                        return ACVP_CRYPTO_MODULE_FAIL;
-                }
-        } else {
+        if (direct_api != 1) {
                 job = IMB_GET_NEXT_JOB(mb_mgr);
                 job->key_len_in_bytes = tc->key_len >> 3;
                 job->cipher_mode = IMB_CIPHER_NULL;
@@ -525,9 +527,26 @@ aes_gmac_handler(ACVP_TEST_CASE *test_case)
 
         if (tc->direction == ACVP_SYM_CIPH_DIR_ENCRYPT) {
                 if (direct_api == 1) {
-                        gmac_init_var(&key, &ctx, tc->iv, tc->iv_len);
-                        gmac_update(&key, &ctx, tc->aad, tc->aad_len);
-                        gmac_finalize(&key, &ctx, tc->tag, tc->tag_len);
+                        switch (tc->key_len) {
+                        case 128:
+                                imb_aes128_gmac_init(&key, &ctx, tc->iv, tc->iv_len, mb_mgr);
+                                imb_aes128_gmac_update(&key, &ctx, tc->aad, tc->aad_len, mb_mgr);
+                                imb_aes128_gmac_finalize(&key, &ctx, tc->tag, tc->tag_len, mb_mgr);
+                                break;
+                        case 192:
+                                imb_aes192_gmac_init(&key, &ctx, tc->iv, tc->iv_len, mb_mgr);
+                                imb_aes192_gmac_update(&key, &ctx, tc->aad, tc->aad_len, mb_mgr);
+                                imb_aes192_gmac_finalize(&key, &ctx, tc->tag, tc->tag_len, mb_mgr);
+                                break;
+                        case 256:
+                                imb_aes256_gmac_init(&key, &ctx, tc->iv, tc->iv_len, mb_mgr);
+                                imb_aes256_gmac_update(&key, &ctx, tc->aad, tc->aad_len, mb_mgr);
+                                imb_aes256_gmac_finalize(&key, &ctx, tc->tag, tc->tag_len, mb_mgr);
+                                break;
+                        default:
+                                fprintf(stderr, "Unsupported AES key length\n");
+                                return ACVP_CRYPTO_MODULE_FAIL;
+                        }
                 } else {
                         job->src = tc->aad;
                         job->msg_len_to_hash_in_bytes = tc->aad_len;
@@ -547,9 +566,26 @@ aes_gmac_handler(ACVP_TEST_CASE *test_case)
                 uint8_t res_tag[MAX_TAG_LENGTH] = { 0 };
 
                 if (direct_api == 1) {
-                        gmac_init_var(&key, &ctx, tc->iv, tc->iv_len);
-                        gmac_update(&key, &ctx, tc->aad, tc->aad_len);
-                        gmac_finalize(&key, &ctx, res_tag, tc->tag_len);
+                        switch (tc->key_len) {
+                        case 128:
+                                imb_aes128_gmac_init(&key, &ctx, tc->iv, tc->iv_len, mb_mgr);
+                                imb_aes128_gmac_update(&key, &ctx, tc->aad, tc->aad_len, mb_mgr);
+                                imb_aes128_gmac_finalize(&key, &ctx, res_tag, tc->tag_len, mb_mgr);
+                                break;
+                        case 192:
+                                imb_aes192_gmac_init(&key, &ctx, tc->iv, tc->iv_len, mb_mgr);
+                                imb_aes192_gmac_update(&key, &ctx, tc->aad, tc->aad_len, mb_mgr);
+                                imb_aes192_gmac_finalize(&key, &ctx, res_tag, tc->tag_len, mb_mgr);
+                                break;
+                        case 256:
+                                imb_aes256_gmac_init(&key, &ctx, tc->iv, tc->iv_len, mb_mgr);
+                                imb_aes256_gmac_update(&key, &ctx, tc->aad, tc->aad_len, mb_mgr);
+                                imb_aes256_gmac_finalize(&key, &ctx, res_tag, tc->tag_len, mb_mgr);
+                                break;
+                        default:
+                                fprintf(stderr, "Unsupported AES key length\n");
+                                return ACVP_CRYPTO_MODULE_FAIL;
+                        }
                 } else {
                         job->src = tc->aad;
                         job->msg_len_to_hash_in_bytes = tc->aad_len;
@@ -2189,8 +2225,17 @@ main(int argc, char **argv)
                 goto exit;
         }
 
-        if ((mb_mgr != NULL) && (mb_mgr->features & IMB_FEATURE_SELF_TEST)) {
-                if (mb_mgr->features & IMB_FEATURE_SELF_TEST_PASS)
+        uint64_t features = 0;
+        const int imb_ret = imb_get_features(mb_mgr, &features);
+
+        if (imb_ret != 0) {
+                printf("Error retrieving MB_MGR features! %s\n", imb_get_strerror(imb_ret));
+                free_mb_mgr(mb_mgr);
+                return EXIT_FAILURE;
+        }
+
+        if ((mb_mgr != NULL) && (features & IMB_FEATURE_SELF_TEST)) {
+                if (features & IMB_FEATURE_SELF_TEST_PASS)
                         printf("SELF-TEST: PASS\n");
                 else
                         printf("SELF-TEST: FAIL\n");

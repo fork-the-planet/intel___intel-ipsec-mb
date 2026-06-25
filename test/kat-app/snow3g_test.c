@@ -387,7 +387,7 @@ validate_snow3g_f8_1_block(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 memcpy(dstBuff, testVectors[i].ct, length);
 
                 /*setup the keysched to be used*/
-                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey, pKeySched) == -1) {
+                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey, pKeySched) != 0) {
                         printf("CPU check failed\n");
                         goto snow3g_f8_1_buffer_exit;
                 }
@@ -585,7 +585,7 @@ validate_snow3g_f8_1_bitblock(struct IMB_MGR *mb_mgr, uint32_t job_api,
                         }
 
                         /*setup the keysched to be used*/
-                        if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey, pKeySched) == -1) {
+                        if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey, pKeySched) != 0) {
                                 printf("SNOW3G init key schedule failed\n");
                                 goto snow3g_f8_1_buffer_bit_exit;
                         }
@@ -783,7 +783,7 @@ validate_snow3g_f8_2_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                         memcpy(pIV[i], testVectors[j].iv, testVectors[j].ivSize / 8);
 
                         /* init key shed */
-                        if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i])) {
+                        if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i]) != 0) {
                                 printf("IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr) error\n");
                                 goto snow3g_f8_2_buffer_exit;
                         }
@@ -1023,7 +1023,7 @@ validate_snow3g_f8_4_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                         memcpy(pIV[i], testVectors[j].iv, testVectors[j].ivSize / 8);
                         /* init key shed */
-                        if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i])) {
+                        if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i]) != 0) {
                                 printf("IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr) error\n");
                                 goto snow3g_f8_4_buffer_exit;
                         }
@@ -1209,7 +1209,7 @@ validate_snow3g_f8_4_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 memcpy(pIV[i], testVectors[1].iv, testVectors[1].ivSize / 8);
 
                 /* init key shed */
-                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i])) {
+                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i]) != 0) {
                         printf("IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr) error\n");
                         goto snow3g_f8_4_buffer_exit;
                 }
@@ -1348,7 +1348,7 @@ validate_snow3g_f8_8_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                         memcpy(pIV[i], testVectors[j].iv, testVectors[j].ivSize / 8);
 
                         /* init key shed */
-                        if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i])) {
+                        if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i]) != 0) {
                                 printf("IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr) error\n");
                                 goto snow3g_f8_8_buffer_exit;
                         }
@@ -1479,7 +1479,7 @@ validate_snow3g_f8_8_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 memcpy(pIV[i], testVectors[1].iv, testVectors[1].ivSize / 8);
 
                 /* init key shed */
-                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i])) {
+                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i]) != 0) {
                         printf("IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr) error\n");
                         goto snow3g_f8_8_buffer_exit;
                 }
@@ -1624,7 +1624,7 @@ validate_snow3g_f8_8_blocks_multi_key(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 memcpy(pIV[i], testVectors[j].iv, testVectors[j].ivSize / 8);
 
-                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i])) {
+                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i]) != 0) {
                         printf("IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr) error\n");
                         goto snow3g_f8_8_buffer_multikey_exit;
                 }
@@ -1792,7 +1792,7 @@ validate_snow3g_f8_n_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 memcpy(pIV[i], testVectors[0].iv, testVectors[0].ivSize / 8);
 
                 /* init key shed */
-                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i])) {
+                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i]) != 0) {
                         printf("IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr) error\n");
                         goto snow3g_f8_n_buffer_exit;
                 }
@@ -1969,7 +1969,7 @@ validate_snow3g_f8_n_blocks_linear(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 memcpy(pIV[i], testVectors[0].iv, testVectors[0].ivSize / 8);
 
                 /* init key shed */
-                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i])) {
+                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i]) != 0) {
                         printf("IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr) error\n");
                         goto snow3g_f8_n_buffer_linear_exit;
                 }
@@ -2184,7 +2184,7 @@ validate_snow3g_f8_n_blocks_linear_mkeys(struct IMB_MGR *mb_mgr, uint32_t job_ap
                 memcpy(pIV[i], testVectors[j].iv, testVectors[j].ivSize / 8);
 
                 /* init key shed */
-                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i])) {
+                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i]) != 0) {
                         printf("IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr) error\n");
                         goto snow3g_f8_n_buff_linear_mkey_exit;
                 }
@@ -2421,7 +2421,7 @@ validate_snow3g_f8_n_blocks_multi(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 memcpy(pIV[i], testVectors[j].iv, testVectors[j].ivSize / 8);
 
-                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i])) {
+                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey[i], pKeySched[i]) != 0) {
                         printf("IMB_SNOW3G_INIT_KEY_SCHED() error\n");
                         goto snow3g_f8_n_buffer_multikey_exit;
                 }
@@ -2565,7 +2565,7 @@ validate_snow3g_f9(struct IMB_MGR *mb_mgr, uint32_t job_api, struct test_suite_c
                 memcpy(pIV, testVectors[i].iv, testVectors[i].ivSize / 8);
 
                 /*Only 1 key sched is used*/
-                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey, pKeySched)) {
+                if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey, pKeySched) != 0) {
                         printf("IMB_SNOW3G_KEY_SCHED_SIZE(mb_mgr): error\n");
                         goto snow3g_f9_1_buffer_exit;
                 }

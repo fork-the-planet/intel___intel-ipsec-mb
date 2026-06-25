@@ -752,7 +752,9 @@ test_burst_api(struct IMB_MGR *mb_mgr)
 
         /* ======== test 1 : NULL pointer to jobs array */
 
-        if (mb_mgr->features & IMB_FEATURE_SAFE_PARAM) {
+        uint64_t features = 0;
+
+        if (imb_get_features(mb_mgr, &features) != 0 || (features & IMB_FEATURE_SAFE_PARAM)) {
                 completed_jobs = IMB_SUBMIT_BURST(mb_mgr, n_jobs, null_jobs);
                 if (completed_jobs != 0) {
                         printf("%s: test %d, unexpected number of completed "
@@ -946,14 +948,6 @@ test_burst_api(struct IMB_MGR *mb_mgr)
                 return 1;
         }
 
-        /* ensure that mbr_mgr job buffer was not marked as "empty" in the process */
-        if (mb_mgr->earliest_job == -1) {
-                printf("%s: test %d, job buffer unexpectedly marked 'empty'\n", __func__,
-                       TEST_INVALID_BURST);
-                free(large_buffer);
-                return 1;
-        }
-
         /* get last 128 jobs from job queue */
         num_jobs = IMB_GET_NEXT_BURST(mb_mgr, IMB_MAX_BURST_SIZE, burst_jobs);
         if (num_jobs != IMB_MAX_BURST_SIZE) {
@@ -988,14 +982,6 @@ test_burst_api(struct IMB_MGR *mb_mgr)
                 return 1;
         }
 
-        /* ensure that mbr_mgr job buffer not marked as "empty" */
-        if (mb_mgr->earliest_job == -1) {
-                printf("%s: test %d, job buffer unexpectedly NOT marked 'empty'\n", __func__,
-                       TEST_INVALID_BURST);
-                free(large_buffer);
-                return 1;
-        }
-
         /* flush second set of burst jobs  */
         completed_jobs = IMB_FLUSH_BURST(mb_mgr, IMB_MAX_BURST_SIZE, burst_jobs);
         if (completed_jobs != IMB_MAX_BURST_SIZE) {
@@ -1014,16 +1000,9 @@ test_burst_api(struct IMB_MGR *mb_mgr)
                 return 1;
         }
 
-        /* ensure that mbr_mgr job buffer WAS marked as "empty" */
-        if (mb_mgr->earliest_job != -1) {
-                printf("%s: test %d, job buffer unexpectedly NOT marked 'empty'\n", __func__,
-                       TEST_INVALID_BURST);
-                return 1;
-        }
-
         print_progress();
 
-        if ((mb_mgr->features & IMB_FEATURE_SAFE_PARAM) == 0)
+        if (imb_get_features(mb_mgr, &features) != 0 || ((features & IMB_FEATURE_SAFE_PARAM) == 0))
                 return 0;
 
         printf("GET_NEXT_BURST() API behavior test:\n");
@@ -2480,7 +2459,11 @@ submit_reset_check_job(struct IMB_MGR *mb_mgr, IMB_CIPHER_MODE cipher, IMB_CIPHE
                  * Reset MB MGR pointers first and
                  * check if job can be retrieved later
                  */
-                if (imb_set_pointers_mb_mgr(mb_mgr, mb_mgr->flags, 0) == NULL)
+                uint64_t flags = 0;
+
+                if (imb_get_flags(mb_mgr, &flags) != 0)
+                        return 1;
+                if (imb_set_pointers_mb_mgr(mb_mgr, flags, 0) == NULL)
                         return 1;
 
                 next_job = IMB_FLUSH_JOB(mb_mgr);
@@ -2493,8 +2476,8 @@ submit_reset_check_job(struct IMB_MGR *mb_mgr, IMB_CIPHER_MODE cipher, IMB_CIPHE
         if (next_job->status != IMB_STATUS_COMPLETED) {
                 printf("Returned job's status is not completed\n");
                 printf("cipher = %d\n", cipher);
-                printf("imb errno = %d (%s)\n", mb_mgr->imb_errno,
-                       imb_get_strerror(mb_mgr->imb_errno));
+                printf("imb errno = %d (%s)\n", imb_get_errno(mb_mgr),
+                       imb_get_strerror(imb_get_errno(mb_mgr)));
                 exit(0);
         }
 
@@ -2519,7 +2502,11 @@ test_reset_api(struct IMB_MGR *mb_mgr)
                 ;
 
         /* Reset MB MGR pointers first */
-        if (imb_set_pointers_mb_mgr(mb_mgr, mb_mgr->flags, 0) == NULL)
+        uint64_t flags = 0;
+
+        if (imb_get_flags(mb_mgr, &flags) != 0)
+                return 1;
+        if (imb_set_pointers_mb_mgr(mb_mgr, flags, 0) == NULL)
                 return 1;
 
         /* Loop around all cipher algorithms */
@@ -2855,6 +2842,154 @@ test_self_test_api(struct IMB_MGR *mb_mgr)
         return 0;
 }
 
+static int
+test_get_apis(struct IMB_MGR *mb_mgr)
+{
+        printf("Get APIs test:\n");
+
+        /* ======== test imb_get_features with NULL parameters */
+        uint64_t features;
+
+        /* NULL mb_mgr */
+        if (imb_get_features(NULL, &features) != EINVAL) {
+                printf("%s: imb_get_features(NULL, &features) should return EINVAL\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* NULL p_features */
+        if (imb_get_features(mb_mgr, NULL) != EINVAL) {
+                printf("%s: imb_get_features(mb_mgr, NULL) should return EINVAL\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* Both NULL */
+        if (imb_get_features(NULL, NULL) != EINVAL) {
+                printf("%s: imb_get_features(NULL, NULL) should return EINVAL\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* Valid call */
+        if (imb_get_features(mb_mgr, &features) != 0) {
+                printf("%s: imb_get_features(mb_mgr, &features) should return 0\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* ======== test imb_get_flags with NULL parameters */
+        uint64_t flags;
+
+        /* NULL mb_mgr */
+        if (imb_get_flags(NULL, &flags) != EINVAL) {
+                printf("%s: imb_get_flags(NULL, &flags) should return EINVAL\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* NULL p_flags */
+        if (imb_get_flags(mb_mgr, NULL) != EINVAL) {
+                printf("%s: imb_get_flags(mb_mgr, NULL) should return EINVAL\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* Both NULL */
+        if (imb_get_flags(NULL, NULL) != EINVAL) {
+                printf("%s: imb_get_flags(NULL, NULL) should return EINVAL\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* Valid call */
+        if (imb_get_flags(mb_mgr, &flags) != 0) {
+                printf("%s: imb_get_flags(mb_mgr, &flags) should return 0\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* ======== test imb_get_ooo_mgr with NULL and invalid parameters */
+        void *ooo_ptr;
+        size_t ooo_size;
+        const char *ooo_name;
+
+        /* NULL state */
+        if (imb_get_ooo_mgr(NULL, 0, &ooo_ptr, &ooo_size, &ooo_name) != EINVAL) {
+                printf("%s: imb_get_ooo_mgr(NULL, ...) should return EINVAL\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* Invalid index - too large (20 OOO managers in table, indices 0-19) */
+        if (imb_get_ooo_mgr(mb_mgr, 100, &ooo_ptr, &ooo_size, &ooo_name) != EINVAL) {
+                printf("%s: imb_get_ooo_mgr with index 100 should return EINVAL\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* Valid call with index -1 (IMB_MGR itself) - note: ANY negative index works */
+        if (imb_get_ooo_mgr(mb_mgr, -1, &ooo_ptr, &ooo_size, &ooo_name) != 0) {
+                printf("%s: imb_get_ooo_mgr with index -1 should return 0\n", __func__);
+                return 1;
+        }
+        if (ooo_ptr != (void *) mb_mgr) {
+                printf("%s: imb_get_ooo_mgr with index -1 should return mb_mgr pointer\n",
+                       __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* Test with another negative index - should also work and return IMB_MGR info */
+        if (imb_get_ooo_mgr(mb_mgr, -5, &ooo_ptr, &ooo_size, &ooo_name) != 0) {
+                printf("%s: imb_get_ooo_mgr with negative index should return 0\n", __func__);
+                return 1;
+        }
+        if (ooo_ptr != (void *) mb_mgr) {
+                printf("%s: imb_get_ooo_mgr with negative index should return mb_mgr pointer\n",
+                       __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* Valid call with NULL output pointers (should still succeed) */
+        if (imb_get_ooo_mgr(mb_mgr, 0, NULL, NULL, NULL) != 0) {
+                printf("%s: imb_get_ooo_mgr with all NULL outputs should return 0\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* Valid call with valid index 0 */
+        if (imb_get_ooo_mgr(mb_mgr, 0, &ooo_ptr, &ooo_size, &ooo_name) != 0) {
+                printf("%s: imb_get_ooo_mgr with index 0 should return 0\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        /* Valid call with partial NULL outputs */
+        if (imb_get_ooo_mgr(mb_mgr, 1, &ooo_ptr, NULL, NULL) != 0) {
+                printf("%s: imb_get_ooo_mgr with only ooo_ptr should return 0\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        if (imb_get_ooo_mgr(mb_mgr, 2, NULL, &ooo_size, NULL) != 0) {
+                printf("%s: imb_get_ooo_mgr with only ooo_size should return 0\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        if (imb_get_ooo_mgr(mb_mgr, 3, NULL, NULL, &ooo_name) != 0) {
+                printf("%s: imb_get_ooo_mgr with only ooo_name should return 0\n", __func__);
+                return 1;
+        }
+        print_progress();
+
+        if (!quiet_mode)
+                printf("\n");
+        return 0;
+}
+
 int
 api_test(struct IMB_MGR *mb_mgr)
 {
@@ -2882,6 +3017,9 @@ api_test(struct IMB_MGR *mb_mgr)
         run++;
 
         errors += test_self_test_api(mb_mgr);
+        run++;
+
+        errors += test_get_apis(mb_mgr);
         run++;
 
         test_suite_update(&ctx, run - errors, errors);

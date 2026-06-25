@@ -153,11 +153,11 @@ kasumi_compute_sched(const uint8_t modifier, const void *const pKey, void *pCtx)
         imb_set_errno(NULL, 0);
         if (pKey == NULL) {
                 imb_set_errno(NULL, IMB_ERR_NULL_KEY);
-                return -1;
+                return IMB_ERR_NULL_KEY;
         }
         if (pCtx == NULL) {
                 imb_set_errno(NULL, IMB_ERR_NULL_EXP_KEY);
-                return -1;
+                return IMB_ERR_NULL_EXP_KEY;
         }
 #endif
         uint32_t i = 0;

@@ -28,6 +28,8 @@
 #ifndef ERROR_H
 #define ERROR_H
 
+#include "mb_mgr.h"
+
 /*
  * declare global variable to store
  * process wide error status

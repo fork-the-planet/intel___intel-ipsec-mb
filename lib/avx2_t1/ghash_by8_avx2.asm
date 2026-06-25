@@ -69,10 +69,8 @@ ghash_last_7_avx_gen4:
 ;       (const void *key, struct gcm_key_data *key_data)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
-MKGLOBAL(ghash_pre_avx_gen4,function,)
-MKGLOBAL(ghash_pre_avx512,function,)
+MKGLOBAL(ghash_pre_avx_gen4,function,internal)
 ghash_pre_avx_gen4:
-ghash_pre_avx512:
         endbranch64
 ;; Parameter is passed through register
 %ifdef SAFE_PARAM
@@ -186,10 +184,8 @@ partial_block_gmac_avx_gen4:
 ;        const u64    tag_len);
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 align_function
-MKGLOBAL(ghash_avx_gen4,function,)
-MKGLOBAL(ghash_avx512,function,)
+MKGLOBAL(ghash_avx_gen4,function,internal)
 ghash_avx_gen4:
-ghash_avx512:
         endbranch64
         FUNC_SAVE
 

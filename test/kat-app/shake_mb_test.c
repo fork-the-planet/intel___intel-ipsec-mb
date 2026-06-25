@@ -142,27 +142,10 @@ static int
 run_shake_mb_jobs(struct IMB_MGR *mb_mgr, const shake_mb_vec_t *vec, int num_jobs)
 {
         uint8_t padding[16];
-        uint8_t ref[512] = { 0 }; /* single-buffer reference (up to 256B for KAT) */
         uint8_t **outs = NULL;
         IMB_JOB *job;
         int i, jobs_rx = 0, ret = -1;
         static const uint8_t empty_msg[1] = { 0 };
-        const uint8_t *src_msg = vec->msg ? vec->msg : NULL;
-        size_t src_len = vec->msg_len;
-
-        /* Compute single-buffer reference for this vector */
-        if (vec->alg == IMB_AUTH_SHAKE128)
-                mb_mgr->shake128(src_msg, src_len, ref, vec->out_len);
-        else
-                mb_mgr->shake256(src_msg, src_len, ref, vec->out_len);
-
-        /* Verify single-buffer output matches expected KAT vector */
-        if (memcmp(ref, vec->expected, vec->out_len)) {
-                printf("%s: single-buffer reference mismatch with KAT vector\n", vec->name);
-                hexdump(stderr, "Got", ref, vec->out_len);
-                hexdump(stderr, "Expected", vec->expected, vec->out_len);
-                goto end;
-        }
 
         memset(padding, 0xAB, sizeof(padding));
 
@@ -259,92 +242,6 @@ end:
         return ret;
 }
 
-/*
- * Cross-validation: compare multi-buffer output against single-buffer
- * reference (state->shake128 / state->shake256) for a range of outlen values.
- */
-static int
-run_shake_mb_xval(struct IMB_MGR *mb_mgr, const IMB_HASH_ALG alg, const char *alg_name,
-                  struct test_suite_context *ctx)
-{
-        /* Test messages */
-        static const struct {
-                size_t len;
-                uint8_t data[32];
-        } msgs[] = {
-                { 0, { 0 } },
-                { 1, { 0x00 } },
-                { 3, { 0xab, 0xcd, 0xef } },
-                { 32, { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a,
-                        0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15,
-                        0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f } },
-        };
-        /* Output lengths to test: covers < rate, = rate, and > rate */
-        const int rate = (alg == IMB_AUTH_SHAKE128) ? SHAKE128_RATE : SHAKE256_RATE;
-        const int outlens[] = {
-                1, 7, 16, 32, 64, rate - 1, rate, rate + 1, rate * 2 - 1, rate * 2
-        };
-        int errors = 0;
-        unsigned mi, oi;
-        static const uint8_t empty[1] = { 0 };
-
-        for (mi = 0; mi < DIM(msgs); mi++) {
-                for (oi = 0; oi < DIM(outlens); oi++) {
-                        const int outlen = outlens[oi];
-                        uint8_t ref[512], got[512];
-                        IMB_JOB *job;
-                        int ok;
-
-                        memset(ref, 0, sizeof(ref));
-                        memset(got, 0, sizeof(got));
-
-                        /* single-buffer reference */
-                        if (alg == IMB_AUTH_SHAKE128)
-                                mb_mgr->shake128(msgs[mi].len ? msgs[mi].data : empty, msgs[mi].len,
-                                                 ref, outlen);
-                        else
-                                mb_mgr->shake256(msgs[mi].len ? msgs[mi].data : empty, msgs[mi].len,
-                                                 ref, outlen);
-
-                        /* multi-buffer job */
-                        while (IMB_FLUSH_JOB(mb_mgr) != NULL)
-                                ;
-                        job = IMB_GET_NEXT_JOB(mb_mgr);
-                        memset(job, 0, sizeof(*job));
-                        job->cipher_mode = IMB_CIPHER_NULL;
-                        job->cipher_direction = IMB_DIR_ENCRYPT;
-                        job->chain_order = IMB_ORDER_HASH_CIPHER;
-                        job->hash_alg = alg;
-                        job->src = msgs[mi].len ? msgs[mi].data : empty;
-                        job->msg_len_to_hash_in_bytes = msgs[mi].len;
-                        job->auth_tag_output = got;
-                        job->auth_tag_output_len_in_bytes = outlen;
-                        job = IMB_SUBMIT_JOB(mb_mgr);
-                        if (!job)
-                                job = IMB_FLUSH_JOB(mb_mgr);
-
-                        if (!job || job->status != IMB_STATUS_COMPLETED) {
-                                printf("%s xval: job error (msg=%u outlen=%d)\n", alg_name, mi,
-                                       outlen);
-                                test_suite_update(ctx, 0, 1);
-                                errors++;
-                                continue;
-                        }
-
-                        ok = (memcmp(ref, got, outlen) == 0);
-                        test_suite_update(ctx, ok, !ok);
-                        if (!ok) {
-                                printf("%s xval mismatch: msg_len=%zu outlen=%d\n", alg_name,
-                                       msgs[mi].len, outlen);
-                                hexdump(stderr, "ref", ref, outlen);
-                                hexdump(stderr, "got", got, outlen);
-                                errors++;
-                        }
-                }
-        }
-        return errors;
-}
-
 /* ========================================================================= */
 /* Public entry point                                                         */
 /* ========================================================================= */
@@ -357,8 +254,9 @@ shake_test(struct IMB_MGR *mb_mgr)
         struct test_suite_context shake128_ctx, shake256_ctx;
         int errors = 0;
         unsigned vi;
+        uint64_t features = 0;
 
-        if (!(mb_mgr->features & IMB_FEATURE_AVX512_SKX))
+        if (imb_get_features(mb_mgr, &features) != 0 || !(features & IMB_FEATURE_AVX512_SKX))
                 return 0;
 
         test_suite_start(&shake128_ctx, "SHAKE128_MB");
@@ -395,14 +293,6 @@ shake_test(struct IMB_MGR *mb_mgr)
                                 printf("  FAIL: %s (num_jobs=%d)\n", v->name, nj);
                 }
         }
-
-        if (!quiet_mode)
-                printf("SHAKE128 cross-validation (MB vs single-buffer):\n");
-        errors += run_shake_mb_xval(mb_mgr, IMB_AUTH_SHAKE128, "SHAKE128", &shake128_ctx);
-
-        if (!quiet_mode)
-                printf("SHAKE256 cross-validation (MB vs single-buffer):\n");
-        errors += run_shake_mb_xval(mb_mgr, IMB_AUTH_SHAKE256, "SHAKE256", &shake256_ctx);
 
         errors += test_suite_end(&shake128_ctx);
         errors += test_suite_end(&shake256_ctx);

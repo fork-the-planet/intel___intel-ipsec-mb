@@ -1,5 +1,5 @@
 /**********************************************************************
-  Copyright(c) 2021-2024, Intel Corporation All rights reserved.
+  Copyright(c) 2021-2026, Intel Corporation All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
@@ -126,7 +126,6 @@ fill_additional_cipher_data(struct IMB_JOB *job, struct IMB_SGL_IOV *sgl_segs,
                         job->u.GCM.aad = buff;
                 if (job->u.GCM.ctx != NULL) {
                         job->u.GCM.ctx = buff;
-                        job->u.GCM.ctx->partial_block_length &= 15;
                 }
                 if (job->u.GCM.aad_len_in_bytes > buffsize)
                         job->u.GCM.aad_len_in_bytes = buffsize;
@@ -285,7 +284,6 @@ fill_additional_hash_data(struct IMB_JOB *job, void *buff, uint64_t buffsize)
                         job->u.GCM.aad = buff;
                 if (job->u.GCM.ctx != NULL) {
                         job->u.GCM.ctx = buff;
-                        job->u.GCM.ctx->partial_block_length &= 15;
                 }
                 if (job->u.GCM.aad_len_in_bytes > buffsize)
                         job->u.GCM.aad_len_in_bytes = buffsize;

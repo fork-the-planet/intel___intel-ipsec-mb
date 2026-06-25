@@ -45,6 +45,7 @@
 #include "include/des.h"
 #include "include/sm4_gcm.h"
 #include "intel-ipsec-mb.h"
+#include "mb_mgr.h"
 #include "include/error.h"
 #include "include/snow3g_submit.h"
 #include "include/job_api_gcm.h"

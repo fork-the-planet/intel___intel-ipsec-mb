@@ -1301,9 +1301,18 @@ main(int argc, const char **argv)
                 break;
         }
 
-        if (p_mgr->features & IMB_FEATURE_SELF_TEST)
+        uint64_t features = 0;
+        int ret = imb_get_features(p_mgr, &features);
+
+        if (ret != 0) {
+                printf("Error retrieving MB_MGR features! %s\n", imb_get_strerror(ret));
+                free_mb_mgr(p_mgr);
+                return EXIT_FAILURE;
+        }
+
+        if (features & IMB_FEATURE_SELF_TEST)
                 printf("SELF-TEST: %s\n",
-                       (p_mgr->features & IMB_FEATURE_SELF_TEST_PASS) ? "PASS" : "FAIL");
+                       (features & IMB_FEATURE_SELF_TEST_PASS) ? "PASS" : "FAIL");
         else
                 printf("SELF-TEST: N/A (requires library >= v1.3)\n");
 

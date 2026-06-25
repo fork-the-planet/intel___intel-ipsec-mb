@@ -310,6 +310,7 @@ print_hw_features(void)
                          { IMB_FEATURE_AVX10_512, "AVX10-512" } };
         IMB_MGR *p_mgr = NULL;
         unsigned i;
+        uint64_t features = 0;
 
         printf("Detected hardware features:\n");
 
@@ -319,11 +320,17 @@ print_hw_features(void)
                 return;
         }
 
+        if (imb_get_features(p_mgr, &features) != 0) {
+                printf("\tERROR getting features\n");
+                free_mb_mgr(p_mgr);
+                return;
+        }
+
         for (i = 0; i < IMB_DIM(feat_tab); i++) {
                 const uint64_t val = feat_tab[i].feat_val;
 
                 printf("\t%-*.*s : %s\n", 13, 13, feat_tab[i].feat_name,
-                       ((p_mgr->features & val) == val) ? "OK" : "n/a");
+                       ((features & val) == val) ? "OK" : "n/a");
         }
 
         free_mb_mgr(p_mgr);
@@ -505,17 +512,25 @@ main(int argc, char **argv)
                         break;
                 }
 
-                if (p_mgr->features & IMB_FEATURE_SELF_TEST) {
+                uint64_t features;
+
+                if (imb_get_features(p_mgr, &features) != 0) {
+                        printf("Error getting features\n");
+                        free_mb_mgr(p_mgr);
+                        return EXIT_FAILURE;
+                }
+
+                if (features & IMB_FEATURE_SELF_TEST) {
                         printf("SELF-TEST: %s\n",
-                               (p_mgr->features & IMB_FEATURE_SELF_TEST_PASS) ? "PASS" : "FAIL");
+                               (features & IMB_FEATURE_SELF_TEST_PASS) ? "PASS" : "FAIL");
 
                         if (self_test_corrupt) {
                                 printf("SELF-TEST: CORRUPT option enabled. %s\n",
-                                       ((p_mgr->features & IMB_FEATURE_SELF_TEST_PASS) == 0)
+                                       ((features & IMB_FEATURE_SELF_TEST_PASS) == 0)
                                                ? "FAIL expected."
                                                : "ERROR: PASS NOT EXPECTED!");
 
-                                if ((p_mgr->features & IMB_FEATURE_SELF_TEST_PASS) != 0) {
+                                if ((features & IMB_FEATURE_SELF_TEST_PASS) != 0) {
                                         free_mb_mgr(p_mgr);
                                         return EXIT_FAILURE;
                                 }
@@ -531,7 +546,7 @@ main(int argc, char **argv)
                         return EXIT_FAILURE;
                 }
 
-                print_tested_arch(p_mgr->features, atype);
+                print_tested_arch(features, atype);
 
                 for (test_idx = 0; test_idx < DIM(tests); test_idx++) {
                         if (tests[test_idx].enabled) {

@@ -1047,7 +1047,10 @@ direct_api_test(struct IMB_MGR *mb_mgr)
         errors += test_clear_mem_api();
         run++;
 
-        if ((mb_mgr->features & IMB_FEATURE_SAFE_PARAM) == 0) {
+        uint64_t features = 0;
+
+        if (imb_get_features(mb_mgr, &features) != 0 ||
+            ((features & IMB_FEATURE_SAFE_PARAM) == 0)) {
                 printf("SAFE_PARAM feature disabled, "
                        "skipping remaining tests\n");
                 goto dir_api_exit;

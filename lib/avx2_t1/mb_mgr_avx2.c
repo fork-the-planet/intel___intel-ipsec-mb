@@ -47,11 +47,6 @@ init_mb_mgr_avx2_internal(IMB_MGR *state, const int reset_mgrs)
                 return;
         }
 
-        /* reset error status */
-        imb_set_errno(state, 0);
-
-        state->features = cpu_feature_adjust(state->flags, cpu_feature_detect());
-
 #ifdef SMX_NI
         if ((state->features & IMB_CPUFLAGS_AVX2_T4) == IMB_CPUFLAGS_AVX2_T4) {
                 init_mb_mgr_avx2_t4_internal(state, reset_mgrs);

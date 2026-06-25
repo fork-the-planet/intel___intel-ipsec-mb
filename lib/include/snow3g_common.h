@@ -2197,23 +2197,23 @@ SNOW3G_KEY_SCHED_SIZE(void)
  * @param[out] pCtx  pointer to key schedule structure
  * @return Operation status
  * @retval 0 all OK
- * @retval -1 parameter error
+ * @retval IMB_ERR_NULL_KEY \a invalid pKey
+ * @retval IMB_ERR_NULL_EXP_KEY \a invalid pCtx
  */
 int
 SNOW3G_INIT_KEY_SCHED(const void *pKey, snow3g_key_schedule_t *pCtx)
 {
 #ifdef SAFE_PARAM
-        if ((pKey == NULL) || (pCtx == NULL))
-                /* reset error status */
-                imb_set_errno(NULL, 0);
+        /* reset error status */
+        imb_set_errno(NULL, 0);
 
         if (pKey == NULL) {
                 imb_set_errno(NULL, IMB_ERR_NULL_KEY);
-                return -1;
+                return IMB_ERR_NULL_KEY;
         }
         if (pCtx == NULL) {
                 imb_set_errno(NULL, IMB_ERR_NULL_EXP_KEY);
-                return -1;
+                return IMB_ERR_NULL_EXP_KEY;
         }
 #endif
 
