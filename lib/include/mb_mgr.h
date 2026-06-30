@@ -99,40 +99,6 @@ typedef size_t (*kasumi_key_sched_size_t)(void);
 typedef void (*snow3g_f8_1_buffer_t)(const snow3g_key_schedule_t *, const void *, const void *,
                                      void *, const uint32_t);
 
-typedef void (*snow3g_f8_1_buffer_bit_t)(const snow3g_key_schedule_t *, const void *, const void *,
-                                         void *, const uint32_t, const uint32_t);
-
-typedef void (*snow3g_f8_2_buffer_t)(const snow3g_key_schedule_t *, const void *, const void *,
-                                     const void *, void *, const uint32_t, const void *, void *,
-                                     const uint32_t);
-
-typedef void (*snow3g_f8_4_buffer_t)(const snow3g_key_schedule_t *, const void *, const void *,
-                                     const void *, const void *, const void *, void *,
-                                     const uint32_t, const void *, void *, const uint32_t,
-                                     const void *, void *, const uint32_t, const void *, void *,
-                                     const uint32_t);
-
-typedef void (*snow3g_f8_8_buffer_t)(const snow3g_key_schedule_t *, const void *, const void *,
-                                     const void *, const void *, const void *, const void *,
-                                     const void *, const void *, const void *, void *,
-                                     const uint32_t, const void *, void *, const uint32_t,
-                                     const void *, void *, const uint32_t, const void *, void *,
-                                     const uint32_t, const void *, void *, const uint32_t,
-                                     const void *, void *, const uint32_t, const void *, void *,
-                                     const uint32_t, const void *, void *, const uint32_t);
-
-typedef void (*snow3g_f8_8_buffer_multikey_t)(const snow3g_key_schedule_t *const[],
-                                              const void *const[], const void *const[], void *[],
-                                              const uint32_t[]);
-
-typedef void (*snow3g_f8_n_buffer_t)(const snow3g_key_schedule_t *, const void *const[],
-                                     const void *const[], void *[], const uint32_t[],
-                                     const uint32_t);
-
-typedef void (*snow3g_f8_n_buffer_multikey_t)(const snow3g_key_schedule_t *const[],
-                                              const void *const[], const void *const[], void *[],
-                                              const uint32_t[], const uint32_t);
-
 typedef void (*snow3g_f9_1_buffer_t)(const snow3g_key_schedule_t *, const void *, const void *,
                                      const uint64_t, void *);
 
@@ -236,14 +202,7 @@ struct IMB_MGR {
         kasumi_init_f9_key_sched_t kasumi_init_f9_key_sched;
         kasumi_key_sched_size_t kasumi_key_sched_size;
 
-        snow3g_f8_1_buffer_bit_t snow3g_f8_1_buffer_bit;
         snow3g_f8_1_buffer_t snow3g_f8_1_buffer;
-        snow3g_f8_2_buffer_t snow3g_f8_2_buffer;
-        snow3g_f8_4_buffer_t snow3g_f8_4_buffer;
-        snow3g_f8_8_buffer_t snow3g_f8_8_buffer;
-        snow3g_f8_n_buffer_t snow3g_f8_n_buffer;
-        snow3g_f8_8_buffer_multikey_t snow3g_f8_8_buffer_multikey;
-        snow3g_f8_n_buffer_multikey_t snow3g_f8_n_buffer_multikey;
         snow3g_f9_1_buffer_t snow3g_f9_1_buffer;
         snow3g_init_key_sched_t snow3g_init_key_sched;
         snow3g_key_sched_size_t snow3g_key_sched_size;
@@ -548,34 +507,8 @@ struct IMB_MGR {
 #define CALL_KASUMI_INIT_F9_KEY_SCHED(_mgr, _key, _exp_key)                                        \
         ((_mgr)->kasumi_init_f9_key_sched((_key), (_exp_key)))
 #define CALL_KASUMI_KEY_SCHED_SIZE(_mgr) ((_mgr)->kasumi_key_sched_size())
-#define CALL_SNOW3G_F8_1_BUFFER_BIT(_mgr, _exp_key, _iv, _src, _dst, _len, _offset)                \
-        ((_mgr)->snow3g_f8_1_buffer_bit((_exp_key), (_iv), (_src), (_dst), (_len), (_offset)))
 #define CALL_SNOW3G_F8_1_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len)                             \
         ((_mgr)->snow3g_f8_1_buffer((_exp_key), (_iv), (_src), (_dst), (_len)))
-#define CALL_SNOW3G_F8_2_BUFFER(_mgr, _exp_key, _iv1, _iv2, _src1, _dst1, _len1, _src2, _dst2,     \
-                                _len2)                                                             \
-        ((_mgr)->snow3g_f8_2_buffer((_exp_key), (_iv1), (_iv2), (_src1), (_dst1), (_len1),         \
-                                    (_src2), (_dst2), (_len2)))
-#define CALL_SNOW3G_F8_4_BUFFER(_mgr, _exp_key, _iv1, _iv2, _iv3, _iv4, _src1, _dst1, _len1,       \
-                                _src2, _dst2, _len2, _src3, _dst3, _len3, _src4, _dst4, _len4)     \
-        ((_mgr)->snow3g_f8_4_buffer((_exp_key), (_iv1), (_iv2), (_iv3), (_iv4), (_src1), (_dst1),  \
-                                    (_len1), (_src2), (_dst2), (_len2), (_src3), (_dst3), (_len3), \
-                                    (_src4), (_dst4), (_len4)))
-#define CALL_SNOW3G_F8_8_BUFFER(_mgr, _exp_key, _iv1, _iv2, _iv3, _iv4, _iv5, _iv6, _iv7, _iv8,    \
-                                _src1, _dst1, _len1, _src2, _dst2, _len2, _src3, _dst3, _len3,     \
-                                _src4, _dst4, _len4, _src5, _dst5, _len5, _src6, _dst6, _len6,     \
-                                _src7, _dst7, _len7, _src8, _dst8, _len8)                          \
-        ((_mgr)->snow3g_f8_8_buffer((_exp_key), (_iv1), (_iv2), (_iv3), (_iv4), (_iv5), (_iv6),    \
-                                    (_iv7), (_iv8), (_src1), (_dst1), (_len1), (_src2), (_dst2),   \
-                                    (_len2), (_src3), (_dst3), (_len3), (_src4), (_dst4), (_len4), \
-                                    (_src5), (_dst5), (_len5), (_src6), (_dst6), (_len6), (_src7), \
-                                    (_dst7), (_len7), (_src8), (_dst8), (_len8)))
-#define CALL_SNOW3G_F8_8_BUFFER_MULTIKEY(_mgr, _exp_key, _iv, _src, _dst, _len)                    \
-        ((_mgr)->snow3g_f8_8_buffer_multikey((_exp_key), (_iv), (_src), (_dst), (_len)))
-#define CALL_SNOW3G_F8_N_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len, _count)                     \
-        ((_mgr)->snow3g_f8_n_buffer((_exp_key), (_iv), (_src), (_dst), (_len), (_count)))
-#define CALL_SNOW3G_F8_N_BUFFER_MULTIKEY(_mgr, _exp_key, _iv, _src, _dst, _len, _count)            \
-        ((_mgr)->snow3g_f8_n_buffer_multikey((_exp_key), (_iv), (_src), (_dst), (_len), (_count)))
 #define CALL_SNOW3G_F9_1_BUFFER(_mgr, _exp_key, _iv, _src, _len, _tag)                             \
         ((_mgr)->snow3g_f9_1_buffer((_exp_key), (_iv), (_src), (_len), (_tag)))
 #define CALL_SNOW3G_INIT_KEY_SCHED(_mgr, _key, _exp_key)                                           \

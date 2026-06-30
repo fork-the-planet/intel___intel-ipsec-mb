@@ -590,12 +590,6 @@ init_mb_mgr_avx512_t2_internal(IMB_MGR *state, const int reset_mgrs)
         state->kasumi_key_sched_size = kasumi_key_sched_size_sse;
 
         state->snow3g_f8_1_buffer = snow3g_f8_1_buffer_avx512;
-        state->snow3g_f8_2_buffer = snow3g_f8_2_buffer_avx512;
-        state->snow3g_f8_4_buffer = snow3g_f8_4_buffer_avx512;
-        state->snow3g_f8_8_buffer = snow3g_f8_8_buffer_avx512;
-        state->snow3g_f8_n_buffer = snow3g_f8_n_buffer_avx512;
-        state->snow3g_f8_8_buffer_multikey = snow3g_f8_8_buffer_multikey_avx512;
-        state->snow3g_f8_n_buffer_multikey = snow3g_f8_n_buffer_multikey_avx512;
 #ifndef _WIN32
         state->snow3g_f9_1_buffer = snow3g_f9_1_buffer_vaes_avx512;
 #else

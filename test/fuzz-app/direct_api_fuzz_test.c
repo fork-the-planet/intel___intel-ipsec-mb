@@ -152,157 +152,6 @@ test_snow3g_init_key_sched(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
 }
 
 static int
-test_snow3g_f8_1_buff(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
-{
-        if (snow3g_start())
-                return -1;
-
-        IMB_SNOW3G_F8_1_BUFFER(p_mgr, snow3g_exp_key, snow3g_iv, buff, buff, dataSize);
-        snow3g_end();
-        return 0;
-}
-
-static int
-test_snow3g_f8_2_buff(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
-{
-        if (snow3g_start())
-                return -1;
-
-        IMB_SNOW3G_F8_2_BUFFER(p_mgr, snow3g_exp_key, snow3g_iv, snow3g_iv, buff, buff, dataSize,
-                               buff, buff, dataSize);
-        snow3g_end();
-        return 0;
-}
-
-static int
-test_snow3g_f8_4_buff(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
-{
-        if (snow3g_start())
-                return -1;
-
-        IMB_SNOW3G_F8_4_BUFFER(p_mgr, snow3g_exp_key, snow3g_iv, snow3g_iv, snow3g_iv, snow3g_iv,
-                               buff, buff, dataSize, buff, buff, dataSize, buff, buff, dataSize,
-                               buff, buff, dataSize);
-        snow3g_end();
-        return 0;
-}
-
-static int
-test_snow3g_f8_8_buff(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
-{
-        if (snow3g_start())
-                return -1;
-
-        IMB_SNOW3G_F8_8_BUFFER(p_mgr, snow3g_exp_key, snow3g_iv, snow3g_iv, snow3g_iv, snow3g_iv,
-                               snow3g_iv, snow3g_iv, snow3g_iv, snow3g_iv, buff, buff, dataSize,
-                               buff, buff, dataSize, buff, buff, dataSize, buff, buff, dataSize,
-                               buff, buff, dataSize, buff, buff, dataSize, buff, buff, dataSize,
-                               buff, buff, dataSize);
-        snow3g_end();
-        return 0;
-}
-
-static int
-test_snow3g_f8_n_buff(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
-{
-        if (snow3g_start())
-                return -1;
-
-        const void *iv[8];
-        const void *in[8];
-        void *out[8];
-        uint32_t len[8];
-
-        for (int i = 0; i < 8; i++) {
-                iv[i] = snow3g_iv;
-                in[i] = buff;
-                out[i] = buff;
-                len[i] = dataSize;
-        }
-
-        IMB_SNOW3G_F8_N_BUFFER(p_mgr, snow3g_exp_key, iv, in, out, len, 8);
-        snow3g_end();
-        return 0;
-}
-
-struct test_snow3g_mb {
-        size_t n;
-        const void **iv;
-        const void **in;
-        void **out;
-        uint32_t *len;
-        const snow3g_key_schedule_t **key;
-};
-
-static void
-test_snow3g_mb_free(struct test_snow3g_mb *ts)
-{
-        if (ts->key != NULL)
-                free(ts->key);
-        if (ts->iv != NULL)
-                free(ts->iv);
-        if (ts->out != NULL)
-                free(ts->out);
-        if (ts->in != NULL)
-                free(ts->in);
-        if (ts->len != NULL)
-                free(ts->len);
-        memset(ts, 0, sizeof(*ts));
-}
-
-static int
-test_snow3g_mb_alloc(struct test_snow3g_mb *ts, const size_t n)
-{
-        ts->n = n;
-        ts->key = malloc(n * sizeof(ts->key[0]));
-        ts->iv = malloc(n * sizeof(ts->iv[0]));
-        ts->in = malloc(n * sizeof(ts->in[0]));
-        ts->out = malloc(n * sizeof(ts->out[0]));
-        ts->len = malloc(n * sizeof(ts->len[0]));
-
-        if (ts->key == NULL || ts->iv == NULL || ts->in == NULL || ts->out == NULL ||
-            ts->len == NULL) {
-                test_snow3g_mb_free(ts);
-                return -1;
-        }
-
-        return 0;
-}
-
-static void
-test_snow3g_mb_set1(struct test_snow3g_mb *ts, const snow3g_key_schedule_t *key, const void *iv,
-                    const void *in, void *out, const uint32_t len)
-{
-        for (size_t i = 0; i < ts->n; i++) {
-                ts->key[i] = key;
-                ts->iv[i] = iv;
-                ts->in[i] = in;
-                ts->out[i] = out;
-                ts->len[i] = len;
-        }
-}
-
-static int
-test_snow3g_f8_8_multikey(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
-{
-        if (snow3g_start())
-                return -1;
-
-        struct test_snow3g_mb ts;
-        const uint32_t n = 8;
-
-        if (test_snow3g_mb_alloc(&ts, n) != 0) {
-                snow3g_end();
-                return -1;
-        }
-        test_snow3g_mb_set1(&ts, snow3g_exp_key, snow3g_iv, buff, buff, (uint32_t) dataSize);
-        IMB_SNOW3G_F8_8_BUFFER_MULTIKEY(p_mgr, ts.key, ts.iv, ts.in, ts.out, ts.len);
-        test_snow3g_mb_free(&ts);
-        snow3g_end();
-        return 0;
-}
-
-static int
 test_snow3g_f8_iv_gen(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
 {
         (void) p_mgr;
@@ -321,36 +170,6 @@ test_snow3g_f8_iv_gen(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
                 return -1;
         snow3g_f8_iv_gen(params.count, params.bearer, params.dir, iv);
         free(iv);
-        return 0;
-}
-
-static int
-test_snow3g_f8_n_multikey(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
-{
-        if (snow3g_start())
-                return -1;
-
-        struct test_snow3g_mb ts;
-        const uint32_t n = 9;
-
-        if (test_snow3g_mb_alloc(&ts, n) != 0) {
-                snow3g_end();
-                return -1;
-        }
-        test_snow3g_mb_set1(&ts, snow3g_exp_key, snow3g_iv, buff, buff, (uint32_t) dataSize);
-        IMB_SNOW3G_F8_N_BUFFER_MULTIKEY(p_mgr, ts.key, ts.iv, ts.in, ts.out, ts.len, n);
-        test_snow3g_mb_free(&ts);
-        snow3g_end();
-        return 0;
-}
-
-static int
-test_snow3g_f9_1_buff(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
-{
-        if (snow3g_start())
-                return -1;
-        IMB_SNOW3G_F9_1_BUFFER(p_mgr, snow3g_exp_key, snow3g_iv, buff, dataSize, snow3g_digest);
-        snow3g_end();
         return 0;
 }
 
@@ -2068,15 +1887,7 @@ struct {
         { test_imb_des_cfb_one_block, "test_imb_des_cfb_one_block" },
 
         { test_snow3g_init_key_sched, "test_snow3g_init_key_sched" },
-        { test_snow3g_f8_1_buff, "test_snow3g_f8_1_buff" },
-        { test_snow3g_f8_2_buff, "test_snow3g_f8_2_buff" },
-        { test_snow3g_f8_4_buff, "test_snow3g_f8_4_buff" },
-        { test_snow3g_f8_8_buff, "test_snow3g_f8_8_buff" },
-        { test_snow3g_f8_n_buff, "test_snow3g_f8_n_buff" },
-        { test_snow3g_f8_8_multikey, "test_snow3g_f8_8_multikey" },
-        { test_snow3g_f8_n_multikey, "test_snow3g_f8_n_multikey" },
         { test_snow3g_f8_iv_gen, "test_snow3g_f8_iv_gen" },
-        { test_snow3g_f9_1_buff, "test_snow3g_f9_1_buff" },
         { test_snow3g_f9_iv_gen, "test_snow3g_f9_iv_gen" },
 
         { test_aes_gcm_pre, "test_aes_gcm_pre" },

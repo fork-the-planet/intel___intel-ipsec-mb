@@ -782,19 +782,12 @@ test_snow3g_api(struct IMB_MGR *mgr)
         const uint32_t inv_len = -1;
         uint8_t out_buf[BUF_SIZE];
         uint8_t zero_buf[BUF_SIZE];
-        int i, ret1, ret2, seg_err; /* segfault flag */
-        void *out_bufs[NUM_BUFS];
-        uint32_t lens[NUM_BUFS];
+        int ret1, ret2, seg_err; /* segfault flag */
 
         seg_err = setjmp(env);
         if (seg_err) {
                 printf("%s: segfault occurred!\n", __func__);
                 return 1;
-        }
-
-        for (i = 0; i < NUM_BUFS; i++) {
-                out_bufs[i] = (void *) &out_buf;
-                lens[i] = text_len;
         }
 
         memset(out_buf, 0, text_len);
@@ -821,94 +814,6 @@ test_snow3g_api(struct IMB_MGR *mgr)
         ret2 = snow3g_f9_iv_gen(inv_len, (const uint8_t) inv_len, (const uint8_t) inv_len, out_buf);
         if ((memcmp(out_buf, zero_buf, text_len) != 0) || ret1 == 0 || ret2 == 0) {
                 printf("%s: snow3g_f9_iv_gen, invalid "
-                       "param test failed!\n",
-                       __func__);
-                return 1;
-        }
-        print_progress();
-        IMB_SNOW3G_F8_1_BUFFER(mgr, NULL, NULL, NULL, NULL, inv_len);
-        IMB_SNOW3G_F8_1_BUFFER(mgr, NULL, NULL, NULL, out_buf, text_len);
-        if (memcmp(out_buf, zero_buf, text_len) != 0) {
-                printf("%s: IMB_SNOW3G_F8_1_BUFFER, invalid "
-                       "param test failed!\n",
-                       __func__);
-                return 1;
-        }
-        print_progress();
-
-        IMB_SNOW3G_F8_2_BUFFER(mgr, NULL, NULL, NULL, NULL, NULL, inv_len, NULL, NULL, inv_len);
-        IMB_SNOW3G_F8_2_BUFFER(mgr, NULL, NULL, NULL, NULL, out_buf, text_len, NULL, out_buf,
-                               text_len);
-        if (memcmp(out_buf, zero_buf, text_len) != 0) {
-                printf("%s: IMB_SNOW3G_F8_2_BUFFER, invalid "
-                       "param test failed!\n",
-                       __func__);
-                return 1;
-        }
-        print_progress();
-
-        IMB_SNOW3G_F8_4_BUFFER(mgr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, inv_len, NULL, NULL,
-                               inv_len, NULL, NULL, inv_len, NULL, NULL, inv_len);
-        IMB_SNOW3G_F8_4_BUFFER(mgr, NULL, NULL, NULL, NULL, NULL, NULL, out_buf, inv_len, NULL,
-                               out_buf, inv_len, NULL, out_buf, inv_len, NULL, out_buf, inv_len);
-        if (memcmp(out_buf, zero_buf, text_len) != 0) {
-                printf("%s: IMB_SNOW3G_F8_4_BUFFER, invalid "
-                       "param test failed!\n",
-                       __func__);
-                return 1;
-        }
-        print_progress();
-
-        IMB_SNOW3G_F8_8_BUFFER(mgr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                               NULL, inv_len, NULL, NULL, inv_len, NULL, NULL, inv_len, NULL, NULL,
-                               inv_len, NULL, NULL, inv_len, NULL, NULL, inv_len, NULL, NULL,
-                               inv_len, NULL, NULL, inv_len);
-        IMB_SNOW3G_F8_8_BUFFER(mgr, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                               out_buf, inv_len, NULL, out_buf, inv_len, NULL, out_buf, inv_len,
-                               NULL, out_buf, inv_len, NULL, out_buf, inv_len, NULL, out_buf,
-                               inv_len, NULL, out_buf, inv_len, NULL, out_buf, inv_len);
-        if (memcmp(out_buf, zero_buf, text_len) != 0) {
-                printf("%s: IMB_SNOW3G_F8_8_BUFFER, invalid "
-                       "param test failed!\n",
-                       __func__);
-                return 1;
-        }
-        print_progress();
-
-        IMB_SNOW3G_F8_8_BUFFER_MULTIKEY(mgr, NULL, NULL, NULL, NULL, &inv_len);
-        IMB_SNOW3G_F8_8_BUFFER_MULTIKEY(mgr, NULL, NULL, NULL, out_bufs, lens);
-        if (memcmp(out_buf, zero_buf, text_len) != 0) {
-                printf("%s: IMB_SNOW3G_F8_8_BUFFER_MULTIKEY, invalid "
-                       "param test failed!\n",
-                       __func__);
-                return 1;
-        }
-        print_progress();
-
-        IMB_SNOW3G_F8_N_BUFFER(mgr, NULL, NULL, NULL, NULL, NULL, inv_len);
-        IMB_SNOW3G_F8_N_BUFFER(mgr, NULL, NULL, NULL, out_bufs, lens, NUM_BUFS);
-        if (memcmp(out_buf, zero_buf, text_len) != 0) {
-                printf("%s: IMB_SNOW3G_F8_N_BUFFER, invalid "
-                       "param test failed!\n",
-                       __func__);
-                return 1;
-        }
-        print_progress();
-
-        IMB_SNOW3G_F8_N_BUFFER_MULTIKEY(mgr, NULL, NULL, NULL, NULL, NULL, inv_len);
-        IMB_SNOW3G_F8_N_BUFFER_MULTIKEY(mgr, NULL, NULL, NULL, out_bufs, lens, NUM_BUFS);
-        if (memcmp(out_buf, zero_buf, text_len) != 0) {
-                printf("%s: IMB_SNOW3G_F8_N_BUFFER_MULTIKEY, invalid "
-                       "param test failed!\n",
-                       __func__);
-                return 1;
-        }
-        print_progress();
-
-        IMB_SNOW3G_F9_1_BUFFER(mgr, NULL, NULL, NULL, inv_len, NULL);
-        IMB_SNOW3G_F9_1_BUFFER(mgr, NULL, NULL, NULL, text_len, out_buf);
-        if (memcmp(out_buf, zero_buf, text_len) != 0) {
-                printf("%s: IMB_SNOW3G_F9_1_BUFFER, invalid "
                        "param test failed!\n",
                        __func__);
                 return 1;
