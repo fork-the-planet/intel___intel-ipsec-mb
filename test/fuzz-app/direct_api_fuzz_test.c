@@ -779,41 +779,6 @@ test_ghash(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
 /* ========================================================================== */
 /* ========================================================================== */
 
-static uint8_t *zuc_iv = NULL;
-static uint8_t *zuc_key = NULL;
-static uint32_t *zuc_tag = NULL;
-
-static void
-zuc_end(void)
-{
-        if (zuc_key != NULL)
-                free(zuc_key);
-        if (zuc_iv != NULL)
-                free(zuc_iv);
-        if (zuc_tag != NULL)
-                free(zuc_tag);
-        zuc_key = NULL;
-        zuc_iv = NULL;
-        zuc_tag = NULL;
-}
-
-static int
-zuc_start(const size_t dataSize, const uint8_t *data)
-{
-        zuc_key = (uint8_t *) malloc(IMB_ZUC_KEY_LEN_IN_BYTES);
-        zuc_iv = (uint8_t *) malloc(IMB_ZUC_IV_LEN_IN_BYTES);
-        zuc_tag = (uint32_t *) malloc(IMB_ZUC_DIGEST_LEN_IN_BYTES);
-
-        if (zuc_key == NULL || zuc_iv == NULL || zuc_tag == NULL) {
-                zuc_end();
-                return -1;
-        }
-        fill_data(zuc_key, IMB_ZUC_KEY_LEN_IN_BYTES, data, dataSize);
-        fill_data(zuc_iv, IMB_ZUC_IV_LEN_IN_BYTES, data, dataSize);
-        fill_data(zuc_tag, IMB_ZUC_DIGEST_LEN_IN_BYTES, data, dataSize);
-        return 0;
-}
-
 static int
 test_zuc_eea3_iv_gen(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
 {
@@ -833,110 +798,6 @@ test_zuc_eea3_iv_gen(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
                 return -1;
         zuc_eea3_iv_gen(params.count, params.bearer, params.dir, iv);
         free(iv);
-        return 0;
-}
-
-struct test_zuc_mb {
-        size_t n;
-        const void **key;
-        const void **iv;
-        const void **in;
-        void **out; /* eea3 specific */
-        uint32_t *len;
-        uint32_t **tag; /* eia3 specific */
-};
-
-static void
-test_zuc_mb_free(struct test_zuc_mb *ts)
-{
-        if (ts->key != NULL)
-                free(ts->key);
-        if (ts->iv != NULL)
-                free(ts->iv);
-        if (ts->out != NULL)
-                free(ts->out);
-        if (ts->in != NULL)
-                free(ts->in);
-        if (ts->len != NULL)
-                free(ts->len);
-        if (ts->tag != NULL)
-                free(ts->tag);
-        memset(ts, 0, sizeof(*ts));
-}
-
-static int
-test_zuc_mb_alloc(struct test_zuc_mb *ts, const size_t n)
-{
-        ts->n = n;
-
-        ts->key = malloc(n * sizeof(ts->key[0]));
-        ts->iv = malloc(n * sizeof(ts->iv[0]));
-        ts->in = malloc(n * sizeof(ts->in[0]));
-        ts->out = malloc(n * sizeof(ts->out[0]));
-        ts->len = malloc(n * sizeof(ts->len[0]));
-
-        ts->tag = malloc(n * sizeof(ts->tag[0]));
-
-        if (ts->key == NULL || ts->iv == NULL || ts->in == NULL || ts->out == NULL ||
-            ts->len == NULL || ts->tag == NULL) {
-                test_zuc_mb_free(ts);
-                return -1;
-        }
-
-        return 0;
-}
-
-static void
-test_zuc_mb_set1(struct test_zuc_mb *ts, const void *key, const void *iv, const void *in, void *out,
-                 const uint32_t len, uint32_t *tag)
-{
-        for (size_t i = 0; i < ts->n; i++) {
-                ts->key[i] = key;
-                ts->iv[i] = iv;
-                ts->in[i] = in;
-                ts->out[i] = out;
-                ts->len[i] = len;
-                ts->tag[i] = tag;
-        }
-}
-
-static int
-test_zuc_eea3_n_buff(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
-{
-        if (zuc_start(dataSize, buff) != 0)
-                return -1;
-
-        struct test_zuc_mb ts;
-        const uint32_t n = 8;
-
-        if (test_zuc_mb_alloc(&ts, n) != 0) {
-                zuc_end();
-                return -1;
-        }
-        test_zuc_mb_set1(&ts, zuc_key, zuc_iv, buff, buff, dataSize, NULL);
-        IMB_ZUC_EEA3_N_BUFFER(p_mgr, ts.key, ts.iv, ts.in, ts.out, ts.len, n);
-        test_zuc_mb_free(&ts);
-        zuc_end();
-        return 0;
-}
-
-static int
-test_zuc_eia3_n_buff(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
-{
-        if (dataSize < IMB_ZUC_KEY_LEN_IN_BYTES)
-                return -1;
-
-        struct test_zuc_mb ts;
-        const uint32_t n = 9;
-
-        if (test_zuc_mb_alloc(&ts, n) != 0) {
-                zuc_end();
-                return -1;
-        }
-        test_zuc_mb_set1(&ts, zuc_key, zuc_iv, buff, NULL, dataSize, zuc_tag);
-        IMB_ZUC_EIA3_N_BUFFER(p_mgr, ts.key, ts.iv, ts.in, ts.len, ts.tag, n);
-        test_zuc_mb_free(&ts);
-        zuc_end();
         return 0;
 }
 
@@ -2243,9 +2104,7 @@ struct {
         { test_ghash, "test_ghash" },
         { test_ghash_pre, "test_ghash_pre" },
 
-        { test_zuc_eea3_n_buff, "test_zuc_eea3_n_buff" },
         { test_zuc_eea3_iv_gen, "test_zuc_eea3_iv_gen" },
-        { test_zuc_eia3_n_buff, "test_zuc_eia3_n_buff" },
         { test_zuc_eia3_iv_gen, "test_zuc_eia3_iv_gen" },
 
         { test_chacha_poly_enc, "test_chacha_poly_enc" },

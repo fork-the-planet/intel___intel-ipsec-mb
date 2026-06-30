@@ -643,25 +643,18 @@ test_aes_api(struct IMB_MGR *mgr)
  * @brief Performs direct ZUC API invalid param tests
  */
 static int
-test_zuc_api(struct IMB_MGR *mgr)
+test_zuc_api(void)
 {
         const uint32_t text_len = BUF_SIZE;
         const uint32_t inv_len = -1;
         uint8_t out_buf[BUF_SIZE];
         uint8_t zero_buf[BUF_SIZE];
-        int i, ret1, ret2, seg_err; /* segfault flag */
-        void *out_bufs[NUM_BUFS];
-        uint32_t lens[NUM_BUFS];
+        int ret1, ret2, seg_err; /* segfault flag */
 
         seg_err = setjmp(env);
         if (seg_err) {
                 printf("%s: segfault occurred!\n", __func__);
                 return 1;
-        }
-
-        for (i = 0; i < NUM_BUFS; i++) {
-                out_bufs[i] = (void *) &out_buf;
-                lens[i] = text_len;
         }
 
         memset(out_buf, 0, text_len);
@@ -688,16 +681,6 @@ test_zuc_api(struct IMB_MGR *mgr)
         ret2 = zuc_eia3_iv_gen(inv_len, (const uint8_t) inv_len, (const uint8_t) inv_len, out_buf);
         if ((memcmp(out_buf, zero_buf, text_len) != 0) || ret1 == 0 || ret2 == 0) {
                 printf("%s: zuc_eia3_iv_gen, invalid "
-                       "param test failed!\n",
-                       __func__);
-                return 1;
-        }
-        print_progress();
-
-        IMB_ZUC_EEA3_N_BUFFER(mgr, NULL, NULL, NULL, NULL, NULL, inv_len);
-        IMB_ZUC_EEA3_N_BUFFER(mgr, NULL, NULL, NULL, out_bufs, lens, NUM_BUFS);
-        if (memcmp(out_buf, zero_buf, text_len) != 0) {
-                printf("%s: IMB_ZUC_EEA3_N_BUFFER, invalid "
                        "param test failed!\n",
                        __func__);
                 return 1;
@@ -1057,7 +1040,7 @@ direct_api_test(struct IMB_MGR *mb_mgr)
         errors += test_aes_api(mb_mgr);
         run++;
 
-        errors += test_zuc_api(mb_mgr);
+        errors += test_zuc_api();
         run++;
 
         errors += test_kasumi_api(mb_mgr);

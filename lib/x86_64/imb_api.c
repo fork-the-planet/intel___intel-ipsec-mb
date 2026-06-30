@@ -590,20 +590,6 @@ imb_ghash(const struct gcm_key_data *key_data, const void *src, const uint64_t l
 }
 
 IMB_DLL_EXPORT void
-imb_zuc_eea3_n_buffer(const void *const *key, const void *const *iv, const void *const *src,
-                      void **dst, const uint32_t *len, const uint32_t count, IMB_MGR *state)
-{
-        CALL_ZUC_EEA3_N_BUFFER(state, key, iv, src, dst, len, count);
-}
-
-IMB_DLL_EXPORT void
-imb_zuc_eia3_n_buffer(const void *const *key, const void *const *iv, const void *const *src,
-                      const uint32_t *len, uint32_t **tag, const uint32_t count, IMB_MGR *state)
-{
-        CALL_ZUC_EIA3_N_BUFFER(state, key, iv, src, len, tag, count);
-}
-
-IMB_DLL_EXPORT void
 imb_kasumi_f8_1_buffer(const kasumi_key_sched_t *exp_key, const uint64_t iv, const void *src,
                        void *dst, const uint32_t len, IMB_MGR *state)
 {

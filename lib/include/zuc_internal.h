@@ -1086,14 +1086,4 @@ zuc_nca6_16_buffer_job_gfni_avx512(const void *const pKey[16], uint8_t *pIv,
 extern const uint8_t S0[256];
 extern const uint8_t S1[256];
 
-void
-zuc_eea3_n_buffer(IMB_MGR *mgr, const void *const pKey[], const void *const pIv[],
-                  const void *const pBufferIn[], void *pBufferOut[], const uint32_t lengthInBytes[],
-                  const uint32_t numBuffers);
-
-void
-zuc_eia3_n_buffer(IMB_MGR *mgr, const void *const pKey[], const void *const pIv[],
-                  const void *const pBufferIn[], const uint32_t lengthInBits[], uint32_t *pMacI[],
-                  const uint32_t numBuffers);
-
 #endif /* ZUC_INTERNAL_H_ */

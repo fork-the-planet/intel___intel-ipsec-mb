@@ -52,7 +52,7 @@
 #define MAX_BUFFER_LENGTH_IN_BITS  5670 /* biggest test is EIA test 5 */
 #define MAX_BUFFER_LENGTH_IN_BYTES ((MAX_BUFFER_LENGTH_IN_BITS) + 7) / 8
 
-enum api_type { TEST_DIRECT_API, TEST_SINGLE_JOB_API, TEST_BURST_JOB_API };
+enum api_type { TEST_SINGLE_JOB_API, TEST_BURST_JOB_API };
 
 int
 zuc_eia3_nia6_test(struct IMB_MGR *mb_mgr);
@@ -245,15 +245,6 @@ zuc_eia3_nia6_test(struct IMB_MGR *mb_mgr)
                 freePtrArray(pDstData, MAXBUFS);
                 test_suite_update(&eia3_ctx, 0, 1);
                 goto exit_zuc_eia3_nia6_test;
-        }
-
-        /* Direct API tests */
-        for (i = 0; i < DIM(numBuffs); i++) {
-                if (validate_zuc_EIA_n_block(mb_mgr, pSrcData, pDstData, pKeys, pIV, numBuffs[i],
-                                             TEST_DIRECT_API))
-                        test_suite_update(&eia3_ctx, 0, 1);
-                else
-                        test_suite_update(&eia3_ctx, 1, 0);
         }
 
         /* Job API tests */
@@ -463,14 +454,9 @@ validate_zuc_EIA_n_block(struct IMB_MGR *mb_mgr, uint8_t **pSrcData, uint8_t **p
                 if (type == TEST_SINGLE_JOB_API)
                         submit_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, byteLength,
                                          numBuffs, tag_lens, IMB_AUTH_ZUC_EIA3);
-                else if (type == TEST_BURST_JOB_API)
+                else
                         submit_burst_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, byteLength,
                                                numBuffs, tag_lens, IMB_AUTH_ZUC_EIA3);
-                else /* TEST_BURST_JOB_API */
-                        IMB_ZUC_EIA3_N_BUFFER(mb_mgr, (const void *const *) pKeys,
-                                              (const void *const *) pIV,
-                                              (const void *const *) pSrcData, byteLength,
-                                              (uint32_t **) pDstData, numBuffs);
 
                 for (j = 0; j < numBuffs; j++) {
                         retTmp = memcmp(pDstData[j], v[i].tag, IMB_ZUC_DIGEST_LEN_IN_BYTES);
@@ -513,13 +499,9 @@ validate_zuc_EIA_n_block(struct IMB_MGR *mb_mgr, uint8_t **pSrcData, uint8_t **p
         if (type == TEST_SINGLE_JOB_API)
                 submit_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, byteLength, numBuffs,
                                  tag_lens, IMB_AUTH_ZUC_EIA3);
-        else if (type == TEST_BURST_JOB_API)
+        else
                 submit_burst_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, byteLength, numBuffs,
                                        tag_lens, IMB_AUTH_ZUC_EIA3);
-        else /* TEST_BURST_JOB_API */
-                IMB_ZUC_EIA3_N_BUFFER(mb_mgr, (const void *const *) pKeys,
-                                      (const void *const *) pIV, (const void *const *) pSrcData,
-                                      byteLength, (uint32_t **) pDstData, numBuffs);
 
         for (i = 0; i < numBuffs; i++) {
                 const int vec_idx = i % num_vectors;

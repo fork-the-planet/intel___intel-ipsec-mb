@@ -2707,36 +2707,6 @@ zuc_eea3_iv_gen(const uint32_t count, const uint8_t bearer, const uint8_t dir, v
 IMB_DLL_EXPORT int
 zuc_eia3_iv_gen(const uint32_t count, const uint8_t bearer, const uint8_t dir, void *iv_ptr);
 
-/**
- * @brief ZUC EEA3 Confidentiality function
- *
- * @param key   Pointer to an array of key pointers
- * @param iv    Pointer to an array of 16-byte IV pointers
- * @param src   Pointer to an array of plain/cipher text input pointers.
- * @param dst   Pointer to an array of cipher/plain text output pointers.
- * @param len   Pointer to an array of input data lengths in bytes.
- * @param count Number of buffers to process.
- * @param [in] state  Pointer to initialized IMB_MGR structure
- */
-IMB_DLL_EXPORT void
-imb_zuc_eea3_n_buffer(const void *const *key, const void *const *iv, const void *const *src,
-                      void **dst, const uint32_t *len, const uint32_t count, IMB_MGR *state);
-
-/**
- * @brief ZUC EIA3 Integrity function
- *
- * @param key   Pointer to an array of key pointers
- * @param iv    Pointer to an array of 16-byte IV pointers
- * @param src   Pointer to an array of plain/cipher text input pointers.
- * @param len   Pointer to an array of input data lengths in bits.
- * @param tag   Pointer to an array of Authenticated Tag output pointers (4 bytes each)
- * @param count Number of buffers to process.
- * @param [in] state  Pointer to initialized IMB_MGR structure
- */
-IMB_DLL_EXPORT void
-imb_zuc_eia3_n_buffer(const void *const *key, const void *const *iv, const void *const *src,
-                      const uint32_t *len, uint32_t **tag, const uint32_t count, IMB_MGR *state);
-
 /*
  * =========================================================
  * =========================================================
@@ -3404,11 +3374,6 @@ imb_clear_mem(void *mem, const size_t size);
 
 #define IMB_CHACHA20_POLY1305_DEC_FINALIZE(_mgr, _ctx, _tag, _tagl)                                \
         imb_chacha20_poly1305_dec_finalize(_ctx, _tag, _tagl, _mgr)
-
-#define IMB_ZUC_EEA3_N_BUFFER(_mgr, _key, _iv, _src, _dst, _len, _count)                           \
-        imb_zuc_eea3_n_buffer(_key, _iv, _src, _dst, _len, _count, _mgr)
-#define IMB_ZUC_EIA3_N_BUFFER(_mgr, _key, _iv, _src, _len, _tag, _count)                           \
-        imb_zuc_eia3_n_buffer(_key, _iv, _src, _len, _tag, _count, _mgr)
 
 #define IMB_KASUMI_F8_1_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len)                              \
         imb_kasumi_f8_1_buffer(_exp_key, _iv, _src, _dst, _len, _mgr)

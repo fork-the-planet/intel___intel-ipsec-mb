@@ -52,7 +52,7 @@
 #define MAX_BUFFER_LENGTH_IN_BITS  5670 /* biggest test is EIA test 5 */
 #define MAX_BUFFER_LENGTH_IN_BYTES ((MAX_BUFFER_LENGTH_IN_BITS) + 7) / 8
 
-enum api_type { TEST_DIRECT_API, TEST_SINGLE_JOB_API, TEST_BURST_JOB_API };
+enum api_type { TEST_SINGLE_JOB_API, TEST_BURST_JOB_API };
 
 int
 zuc_eea3_nea6_test(struct IMB_MGR *mb_mgr);
@@ -247,15 +247,6 @@ zuc_eea3_nea6_test(struct IMB_MGR *mb_mgr)
                 freePtrArray(pDstData, MAXBUFS);
                 test_suite_update(&eea3_ctx, 0, 1);
                 goto exit_zuc_eea3_nea6_test;
-        }
-
-        /* Direct API tests */
-        for (i = 0; i < DIM(numBuffs); i++) {
-                if (validate_zuc_EEA_n_block(mb_mgr, pSrcData, pDstData, pKeys, pIV, numBuffs[i],
-                                             TEST_DIRECT_API))
-                        test_suite_update(&eea3_ctx, 0, 1);
-                else
-                        test_suite_update(&eea3_ctx, 1, 0);
         }
 
         /* Job API tests */
@@ -510,14 +501,10 @@ submit_and_verify(struct IMB_MGR *mb_mgr, uint8_t **pSrcData, uint8_t **pDstData
                 submit_eea3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, packetLen, dir,
                                  num_buffers, IMB_ZUC_KEY_LEN_IN_BYTES, iv_lens,
                                  IMB_CIPHER_ZUC_EEA3);
-        else if (type == TEST_BURST_JOB_API)
+        else
                 submit_burst_eea3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, packetLen, dir,
                                        num_buffers, IMB_ZUC_KEY_LEN_IN_BYTES, iv_lens,
                                        IMB_CIPHER_ZUC_EEA3);
-        else
-                IMB_ZUC_EEA3_N_BUFFER(mb_mgr, (const void *const *) pKeys,
-                                      (const void *const *) pIV, (const void *const *) pSrcData,
-                                      (void **) pDstData, packetLen, num_buffers);
 
         for (i = 0; i < num_buffers; i++) {
                 uint8_t *pDst8 = (uint8_t *) pDstData[i];

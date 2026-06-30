@@ -88,13 +88,6 @@ typedef void (*chacha_poly_finalize_t)(struct chacha20_poly1305_context_data *, 
 typedef void (*ghash_t)(const struct gcm_key_data *, const void *, const uint64_t, void *,
                         const uint64_t);
 
-typedef void (*zuc_eea3_n_buffer_t)(struct IMB_MGR *, const void *const *, const void *const *,
-                                    const void *const *, void **, const uint32_t *, const uint32_t);
-
-typedef void (*zuc_eia3_n_buffer_t)(struct IMB_MGR *, const void *const *, const void *const *,
-                                    const void *const *, const uint32_t *, uint32_t **,
-                                    const uint32_t);
-
 typedef void (*kasumi_f8_1_buffer_t)(const kasumi_key_sched_t *, const uint64_t, const void *,
                                      void *, const uint32_t);
 typedef void (*kasumi_f9_1_buffer_t)(const kasumi_key_sched_t *, const void *, const uint32_t,
@@ -237,8 +230,6 @@ struct IMB_MGR {
         aes_gcm_pre_t gcm192_pre;
         aes_gcm_pre_t gcm256_pre;
 
-        zuc_eea3_n_buffer_t eea3_n_buffer;
-
         kasumi_f8_1_buffer_t f8_1_buffer;
         kasumi_f9_1_buffer_t f9_1_buffer;
         kasumi_init_f8_key_sched_t kasumi_init_f8_key_sched;
@@ -258,7 +249,6 @@ struct IMB_MGR {
         snow3g_key_sched_size_t snow3g_key_sched_size;
 
         ghash_t ghash;
-        zuc_eia3_n_buffer_t eia3_n_buffer;
         aes_gcm_init_var_iv_t gcm128_init_var_iv;
         aes_gcm_init_var_iv_t gcm192_init_var_iv;
         aes_gcm_init_var_iv_t gcm256_init_var_iv;
@@ -549,10 +539,6 @@ struct IMB_MGR {
         ((_mgr)->chacha20_poly1305_finalize((_ctx), (_tag), (_tagl)))
 #define CALL_CHACHA20_POLY1305_DEC_FINALIZE(_mgr, _ctx, _tag, _tagl)                               \
         ((_mgr)->chacha20_poly1305_finalize((_ctx), (_tag), (_tagl)))
-#define CALL_ZUC_EEA3_N_BUFFER(_mgr, _key, _iv, _src, _dst, _len, _count)                          \
-        ((_mgr)->eea3_n_buffer((_mgr), (_key), (_iv), (_src), (_dst), (_len), (_count)))
-#define CALL_ZUC_EIA3_N_BUFFER(_mgr, _key, _iv, _src, _len, _tag, _count)                          \
-        ((_mgr)->eia3_n_buffer((_mgr), (_key), (_iv), (_src), (_len), (_tag), (_count)))
 #define CALL_KASUMI_F8_1_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len)                             \
         ((_mgr)->f8_1_buffer((_exp_key), (_iv), (_src), (_dst), (_len)))
 #define CALL_KASUMI_F9_1_BUFFER(_mgr, _exp_key, _src, _len, _tag)                                  \
