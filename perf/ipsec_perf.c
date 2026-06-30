@@ -182,7 +182,6 @@ enum test_hash_alg_e {
         TEST_SHA_256,
         TEST_SHA_384,
         TEST_SHA_512,
-        TEST_HASH_CMAC_BITLEN,
         TEST_HASH_CMAC_256,
         TEST_NULL_HASH,
         TEST_DOCSIS_CRC32,
@@ -403,12 +402,6 @@ const struct str_value_mapping hash_algo_str_map[] = {
                 .name = "null",
                 .values.job_params = {
                         .hash_alg = TEST_NULL_HASH
-                }
-        },
-        {
-                .name = "aes-cmac-bitlen",
-                .values.job_params = {
-                        .hash_alg = TEST_HASH_CMAC_BITLEN
                 }
         },
         {
@@ -705,7 +698,6 @@ const uint32_t auth_tag_length_bytes[] = {
         32,                        /* PLAIN_SHA_256 */
         48,                        /* PLAIN_SHA_384 */
         64,                        /* PLAIN_SHA_512 */
-        4,                         /* AES_CMAC_BITLEN (3GPP) */
         8,                         /* PON */
         4,                         /* ZUC-EIA3 */
         IMB_DOCSIS_CRC32_TAG_SIZE, /* DOCSIS_CRC32 */
@@ -1514,10 +1506,10 @@ translate_cipher_mode(const enum test_cipher_mode_e test_mode)
                 c_mode = IMB_CIPHER_ZUC_NEA6;
                 break;
         case TEST_SNOW3G_UEA2:
-                c_mode = IMB_CIPHER_SNOW3G_UEA2_BITLEN;
+                c_mode = IMB_CIPHER_SNOW3G_UEA2;
                 break;
         case TEST_KASUMI_UEA1:
-                c_mode = IMB_CIPHER_KASUMI_UEA1_BITLEN;
+                c_mode = IMB_CIPHER_KASUMI_UEA1;
                 break;
         case TEST_CHACHA20:
                 c_mode = IMB_CIPHER_CHACHA20;
@@ -1638,9 +1630,6 @@ translate_hash_alg(const enum test_hash_alg_e test_mode)
         case TEST_HASH_CMAC:
                 hash_alg = IMB_AUTH_AES_CMAC;
                 break;
-        case TEST_HASH_CMAC_BITLEN:
-                hash_alg = IMB_AUTH_AES_CMAC_BITLEN;
-                break;
         case TEST_HASH_CMAC_256:
                 hash_alg = IMB_AUTH_AES_CMAC_256;
                 break;
@@ -1657,11 +1646,10 @@ translate_hash_alg(const enum test_hash_alg_e test_mode)
                 hash_alg = IMB_AUTH_PON_CRC_BIP;
                 break;
         case TEST_ZUC_EIA3:
-                hash_alg = IMB_AUTH_ZUC_EIA3_BITLEN;
-                break;
+                hash_alg = IMB_AUTH_ZUC_EIA3;
                 break;
         case TEST_SNOW3G_UIA2:
-                hash_alg = IMB_AUTH_SNOW3G_UIA2_BITLEN;
+                hash_alg = IMB_AUTH_SNOW3G_UIA2;
                 break;
         case TEST_KASUMI_UIA1:
                 hash_alg = IMB_AUTH_KASUMI_UIA1;
@@ -1894,11 +1882,8 @@ set_size_lists(uint32_t *cipher_size_list, uint32_t *hash_size_list, uint64_t *x
                 else
                         job_size = params->job_size;
 
-                if ((params->cipher_mode == TEST_SNOW3G_UEA2) ||
-                    (params->cipher_mode == TEST_KASUMI_UEA1))
-                        cipher_size_list[i] = job_size * 8;
-                else if ((params->cipher_mode == TEST_NULL_CIPHER) ||
-                         (params->cipher_mode == TEST_PON_NO_CNTR))
+                if ((params->cipher_mode == TEST_NULL_CIPHER) ||
+                    (params->cipher_mode == TEST_PON_NO_CNTR))
                         cipher_size_list[i] = 0;
                 else if (params->cipher_mode == TEST_PON_CNTR) {
                         if (job_size < 8)
@@ -1916,18 +1901,7 @@ set_size_lists(uint32_t *cipher_size_list, uint32_t *hash_size_list, uint64_t *x
                         hash_size_list[i] = job_size;
                 else
                         hash_size_list[i] = job_size + sha_size_incr;
-
-                /*
-                 * CMAC bit level version is done in bits (length is
-                 * converted to bits and it is decreased by 4 bits,
-                 * to force the CMAC bitlen path)
-                 */
-                if (params->hash_alg == TEST_HASH_CMAC_BITLEN)
-                        hash_size_list[i] = hash_size_list[i] * 8 - 4;
-                else if ((params->hash_alg == TEST_ZUC_EIA3) ||
-                         (params->hash_alg == TEST_SNOW3G_UIA2))
-                        hash_size_list[i] *= 8;
-                else if (params->hash_alg == TEST_PON_CRC_BIP) {
+                if (params->hash_alg == TEST_PON_CRC_BIP) {
                         sha_size_incr = 8;
                         if (job_size < 8)
                                 hash_size_list[i] = 8;
@@ -2298,11 +2272,6 @@ do_test(IMB_MGR *mb_mgr, struct params_s *params, const uint32_t num_iter, uint8
                 job_template.u.CMAC._skey1 = k2;
                 job_template.u.CMAC._skey2 = k3;
                 break;
-        case TEST_HASH_CMAC_BITLEN:
-                job_template.u.CMAC._key_expanded = k1_expanded;
-                job_template.u.CMAC._skey1 = k2;
-                job_template.u.CMAC._skey2 = k3;
-                break;
         case TEST_HASH_CMAC_256:
                 job_template.u.CMAC._key_expanded = k1_expanded;
                 job_template.u.CMAC._skey1 = k2;
@@ -2458,12 +2427,12 @@ do_test(IMB_MGR *mb_mgr, struct params_s *params, const uint32_t num_iter, uint8
 
                 job_template.cipher_start_src_offset_in_bytes = ciph_adjust;
                 job_template.hash_start_src_offset_in_bytes = 0;
-        } else if (job_template.cipher_mode == IMB_CIPHER_SNOW3G_UEA2_BITLEN) {
-                job_template.cipher_start_src_offset_in_bits = 0;
+        } else if (job_template.cipher_mode == IMB_CIPHER_SNOW3G_UEA2) {
+                job_template.cipher_start_src_offset_in_bytes = 0;
                 job_template.key_len_in_bytes = 16;
                 job_template.iv_len_in_bytes = 16;
-        } else if (job_template.cipher_mode == IMB_CIPHER_KASUMI_UEA1_BITLEN) {
-                job_template.cipher_start_src_offset_in_bits = 0;
+        } else if (job_template.cipher_mode == IMB_CIPHER_KASUMI_UEA1) {
+                job_template.cipher_start_src_offset_in_bytes = 0;
                 job_template.key_len_in_bytes = 16;
                 job_template.iv_len_in_bytes = 8;
         } else if (job_template.cipher_mode == IMB_CIPHER_ECB ||
@@ -2701,7 +2670,6 @@ do_test(IMB_MGR *mb_mgr, struct params_s *params, const uint32_t num_iter, uint8
                                                 jt->u.HMAC._hashed_auth_key_xor_opad;
                                         break;
                                 case IMB_AUTH_AES_CMAC:
-                                case IMB_AUTH_AES_CMAC_BITLEN:
                                 case IMB_AUTH_AES_CMAC_256:
                                         job->u.CMAC._key_expanded = jt->u.CMAC._key_expanded;
                                         job->u.CMAC._skey1 = jt->u.CMAC._skey1;
@@ -3594,34 +3562,14 @@ print_times(struct variant_s *variant_list, struct params_s *params, const uint3
 
         if (plot_output_option == 0) {
                 const char *func_names[4] = { "SSE", "AVX2", "AVX512", "AVX10" };
-                const char *c_mode_names[TEST_NUM_CIPHER_TESTS - 1] = { "CBC",
-                                                                        "CNTR",
-                                                                        "ECB",
-                                                                        "NULL_CIPHER",
-                                                                        "DOCAES",
-                                                                        "DOCDES",
-                                                                        "GCM",
-                                                                        "CCM",
-                                                                        "DES",
-                                                                        "3DES",
-                                                                        "PON",
-                                                                        "PON_NO_CTR",
-                                                                        "ZUC_EEA3",
-                                                                        "SNOW3G_UEA2_BITLEN",
-                                                                        "KASUMI_UEA1_BITLEN",
-                                                                        "CHACHA20",
-                                                                        "CHACHA20_AEAD",
-                                                                        "SM4_ECB",
-                                                                        "SM4_CBC",
-                                                                        "AES-CFB",
-                                                                        "SM4_CTR",
-                                                                        "SM4_GCM",
-                                                                        "ZUC_NEA6",
-                                                                        "SNOW5G_NEA4",
-                                                                        "AES_NEA5",
-                                                                        "AES_NCA5",
-                                                                        "ZUC_NCA6",
-                                                                        "SNOW5G_NCA4" };
+                const char *c_mode_names[TEST_NUM_CIPHER_TESTS - 1] = {
+                        "CBC",      "CNTR",          "ECB",        "NULL_CIPHER", "DOCAES",
+                        "DOCDES",   "GCM",           "CCM",        "DES",         "3DES",
+                        "PON",      "PON_NO_CTR",    "ZUC_EEA3",   "SNOW3G_UEA2", "KASUMI_UEA1",
+                        "CHACHA20", "CHACHA20_AEAD", "SM4_ECB",    "SM4_CBC",     "AES-CFB",
+                        "SM4_CTR",  "SM4_GCM",       "ZUC_NEA6",   "SNOW5G_NEA4", "AES_NEA5",
+                        "AES_NCA5", "ZUC_NCA6",      "SNOW5G_NCA4"
+                };
                 const char *c_dir_names[2] = { "ENCRYPT", "DECRYPT" };
                 const char *h_alg_names[TEST_NUM_HASH_TESTS - 1] = { "SHA1_HMAC",
                                                                      "SHA_224_HMAC",
@@ -3636,7 +3584,6 @@ print_times(struct variant_s *variant_list, struct params_s *params, const uint3
                                                                      "SHA_256",
                                                                      "SHA_384",
                                                                      "SHA_512",
-                                                                     "CMAC_BITLEN",
                                                                      "CMAC_256",
                                                                      "NULL_HASH",
                                                                      "CRC32",
@@ -3644,8 +3591,8 @@ print_times(struct variant_s *variant_list, struct params_s *params, const uint3
                                                                      "CUSTOM",
                                                                      "CCM",
                                                                      "BIP-CRC32",
-                                                                     "ZUC_EIA3_BITLEN",
-                                                                     "SNOW3G_UIA2_BITLEN",
+                                                                     "ZUC_EIA3",
+                                                                     "SNOW3G_UIA2",
                                                                      "KASUMI_UIA1",
                                                                      "GMAC-128",
                                                                      "GMAC-192",

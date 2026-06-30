@@ -212,9 +212,9 @@ struct str_value_mapping cipher_algo_str_map[] = {
         { .name = "ZUC-EEA3",
           .values.job_params = { .cipher_mode = IMB_CIPHER_ZUC_EEA3, .key_size = 16 } },
         { .name = "SNOW3G-UEA2",
-          .values.job_params = { .cipher_mode = IMB_CIPHER_SNOW3G_UEA2_BITLEN, .key_size = 16 } },
+          .values.job_params = { .cipher_mode = IMB_CIPHER_SNOW3G_UEA2, .key_size = 16 } },
         { .name = "KASUMI-F8",
-          .values.job_params = { .cipher_mode = IMB_CIPHER_KASUMI_UEA1_BITLEN, .key_size = 16 } },
+          .values.job_params = { .cipher_mode = IMB_CIPHER_KASUMI_UEA1, .key_size = 16 } },
         { .name = "CHACHA20-256",
           .values.job_params = { .cipher_mode = IMB_CIPHER_CHACHA20, .key_size = 32 } },
         { .name = "SM4-ECB-128",
@@ -296,12 +296,6 @@ struct str_value_mapping hash_algo_str_map[] = {
                 }
         },
         {
-                .name = "AES-CMAC-128-BIT-LENGTH",
-                .values.job_params = {
-                        .hash_alg = IMB_AUTH_AES_CMAC_BITLEN
-                }
-        },
-        {
                 .name = "SHA1",
                 .values.job_params = {
                         .hash_alg = IMB_AUTH_SHA_1
@@ -334,13 +328,13 @@ struct str_value_mapping hash_algo_str_map[] = {
         {
                 .name = "ZUC-EIA3",
                 .values.job_params = {
-                        .hash_alg = IMB_AUTH_ZUC_EIA3_BITLEN,
+                        .hash_alg = IMB_AUTH_ZUC_EIA3,
                 }
         },
         {
                 .name = "SNOW3G-UIA2",
                 .values.job_params = {
-                        .hash_alg = IMB_AUTH_SNOW3G_UIA2_BITLEN,
+                        .hash_alg = IMB_AUTH_SNOW3G_UIA2,
                 }
         },
         {
@@ -615,11 +609,10 @@ const uint8_t auth_tag_len_bytes[] = {
         32,                        /* IMB_PLAIN_SHA_256 */
         48,                        /* IMB_PLAIN_SHA_384 */
         64,                        /* IMB_PLAIN_SHA_512 */
-        4,                         /* IMB_AES_CMAC_BITLEN (3GPP) */
         8,                         /* IMB_PON */
-        4,                         /* IMB_ZUC_EIA3_BITLEN */
+        4,                         /* IMB_AUTH_ZUC_EIA3 */
         IMB_DOCSIS_CRC32_TAG_SIZE, /* IMB_AUTH_DOCSIS_CRC32 */
-        4,                         /* IMB_AUTH_SNOW3G_UIA2_BITLEN (3GPP) */
+        4,                         /* IMB_AUTH_SNOW3G_UIA2 (3GPP) */
         4,                         /* IMB_AUTH_KASUMI_UIA1 (3GPP) */
         16,                        /* IMB_AUTH_AES_GMAC_128 */
         16,                        /* IMB_AUTH_AES_GMAC_192 */
@@ -679,7 +672,7 @@ const uint8_t key_sizes[][3] = {
         { 16, 32, 8 },  /* IMB_CIPHER_ECB */
         { 16, 16, 1 },  /* IMB_CIPHER_ZUC_EEA3 */
         { 16, 16, 1 },  /* IMB_CIPHER_SNOW3G_UEA2 */
-        { 16, 16, 1 },  /* IMB_CIPHER_KASUMI_UEA1_BITLEN */
+        { 16, 16, 1 },  /* IMB_CIPHER_KASUMI_UEA1 */
         { 32, 32, 1 },  /* IMB_CIPHER_CHACHA20 */
         { 32, 32, 1 },  /* IMB_CIPHER_CHACHA20_POLY1305 */
         { 32, 32, 1 },  /* IMB_CIPHER_CHACHA20_POLY1305_SGL */
@@ -1345,17 +1338,6 @@ fill_job(IMB_JOB *job, const struct params_s *params, uint8_t *buf, uint8_t *dig
                 job->u.CMAC._skey1 = k2;
                 job->u.CMAC._skey2 = k3;
                 break;
-        case IMB_AUTH_AES_CMAC_BITLEN:
-                job->u.CMAC._key_expanded = k1_expanded;
-                job->u.CMAC._skey1 = k2;
-                job->u.CMAC._skey2 = k3;
-                /*
-                 * CMAC bit level version is done in bits (length is
-                 * converted to bits and it is decreased by 4 bits,
-                 * to force the CMAC bitlen path)
-                 */
-                job->msg_len_to_hash_in_bits = (job->msg_len_to_hash_in_bytes * 8) - 4;
-                break;
         case IMB_AUTH_AES_CMAC_256:
                 job->u.CMAC._key_expanded = k1_expanded;
                 job->u.CMAC._skey1 = k2;
@@ -1376,19 +1358,19 @@ fill_job(IMB_JOB *job, const struct params_s *params, uint8_t *buf, uint8_t *dig
                 job->u.HMAC._hashed_auth_key_xor_ipad = (uint8_t *) ipad;
                 job->u.HMAC._hashed_auth_key_xor_opad = (uint8_t *) opad;
                 break;
-        case IMB_AUTH_ZUC_EIA3_BITLEN:
+        case IMB_AUTH_ZUC_EIA3:
                 job->u.ZUC_EIA3._key = k2;
                 job->u.ZUC_EIA3._iv = auth_iv;
-                job->msg_len_to_hash_in_bits = (job->msg_len_to_hash_in_bytes * 8);
+
                 break;
         case IMB_AUTH_ZUC_NIA6:
                 job->u.NIA._key = k2;
                 job->u.NIA._iv = auth_iv;
                 break;
-        case IMB_AUTH_SNOW3G_UIA2_BITLEN:
+        case IMB_AUTH_SNOW3G_UIA2:
                 job->u.SNOW3G_UIA2._key = k2;
                 job->u.SNOW3G_UIA2._iv = auth_iv;
-                job->msg_len_to_hash_in_bits = (job->msg_len_to_hash_in_bytes * 8);
+
                 break;
         case IMB_AUTH_KASUMI_UIA1:
                 job->u.KASUMI_UIA1._key = k2;
@@ -1556,19 +1538,15 @@ fill_job(IMB_JOB *job, const struct params_s *params, uint8_t *buf, uint8_t *dig
                 else /* 32 */
                         job->iv_len_in_bytes = 25;
                 break;
-        case IMB_CIPHER_SNOW3G_UEA2_BITLEN:
+        case IMB_CIPHER_SNOW3G_UEA2:
                 job->enc_keys = k2;
                 job->dec_keys = k2;
                 job->iv_len_in_bytes = 16;
-                job->msg_len_to_cipher_in_bits = (job->msg_len_to_cipher_in_bytes * 8);
-                job->cipher_start_src_offset_in_bits *= 8;
                 break;
-        case IMB_CIPHER_KASUMI_UEA1_BITLEN:
+        case IMB_CIPHER_KASUMI_UEA1:
                 job->enc_keys = k2;
                 job->dec_keys = k2;
                 job->iv_len_in_bytes = 8;
-                job->msg_len_to_cipher_in_bits = (job->msg_len_to_cipher_in_bytes * 8);
-                job->cipher_start_src_offset_in_bits *= 8;
                 break;
         case IMB_CIPHER_CHACHA20:
         case IMB_CIPHER_CHACHA20_POLY1305:
@@ -1626,7 +1604,6 @@ prepare_keys(IMB_MGR *mb_mgr, struct cipher_auth_keys *keys, const uint8_t *ciph
                         nosimd_memset(k3, pattern_auth_key, sizeof(keys->k3));
                         break;
                 case IMB_AUTH_AES_CMAC:
-                case IMB_AUTH_AES_CMAC_BITLEN:
                 case IMB_AUTH_AES_CMAC_256:
                         nosimd_memset(k1_expanded, pattern_auth_key, sizeof(keys->k1_expanded));
                         nosimd_memset(k2, pattern_auth_key, sizeof(keys->k2));
@@ -1650,9 +1627,9 @@ prepare_keys(IMB_MGR *mb_mgr, struct cipher_auth_keys *keys, const uint8_t *ciph
                         nosimd_memset(ipad, pattern_auth_key, sizeof(keys->ipad));
                         nosimd_memset(opad, pattern_auth_key, sizeof(keys->opad));
                         break;
-                case IMB_AUTH_ZUC_EIA3_BITLEN:
+                case IMB_AUTH_ZUC_EIA3:
                 case IMB_AUTH_ZUC_NIA6:
-                case IMB_AUTH_SNOW3G_UIA2_BITLEN:
+                case IMB_AUTH_SNOW3G_UIA2:
                 case IMB_AUTH_KASUMI_UIA1:
                         nosimd_memset(k3, pattern_auth_key, sizeof(keys->k3));
                         break;
@@ -1734,8 +1711,8 @@ prepare_keys(IMB_MGR *mb_mgr, struct cipher_auth_keys *keys, const uint8_t *ciph
                 case IMB_CIPHER_SNOW5G_NCA4:
                         nosimd_memset(enc_keys, pattern_cipher_key, sizeof(keys->enc_keys));
                         break;
-                case IMB_CIPHER_SNOW3G_UEA2_BITLEN:
-                case IMB_CIPHER_KASUMI_UEA1_BITLEN:
+                case IMB_CIPHER_SNOW3G_UEA2:
+                case IMB_CIPHER_KASUMI_UEA1:
                         nosimd_memset(k2, pattern_cipher_key, 16);
                         break;
                 case IMB_CIPHER_ZUC_NEA6:
@@ -1762,7 +1739,6 @@ prepare_keys(IMB_MGR *mb_mgr, struct cipher_auth_keys *keys, const uint8_t *ciph
                 IMB_AES_XCBC_KEYEXP(mb_mgr, auth_key, k1_expanded, k2, k3);
                 break;
         case IMB_AUTH_AES_CMAC:
-        case IMB_AUTH_AES_CMAC_BITLEN:
                 IMB_AES_KEYEXP_128(mb_mgr, auth_key, k1_expanded, dust);
                 IMB_AES_CMAC_SUBKEY_GEN_128(mb_mgr, k1_expanded, k2, k3);
                 break;
@@ -1786,9 +1762,9 @@ prepare_keys(IMB_MGR *mb_mgr, struct cipher_auth_keys *keys, const uint8_t *ciph
         case IMB_AUTH_MD5:
                 imb_hmac_ipad_opad(mb_mgr, params->hash_alg, auth_key, MAX_KEY_SIZE, ipad, opad);
                 break;
-        case IMB_AUTH_ZUC_EIA3_BITLEN:
+        case IMB_AUTH_ZUC_EIA3:
         case IMB_AUTH_ZUC_NIA6:
-        case IMB_AUTH_SNOW3G_UIA2_BITLEN:
+        case IMB_AUTH_SNOW3G_UIA2:
         case IMB_AUTH_KASUMI_UIA1:
                 nosimd_memcpy(k2, auth_key, sizeof(keys->k2));
                 break;
@@ -1916,8 +1892,8 @@ prepare_keys(IMB_MGR *mb_mgr, struct cipher_auth_keys *keys, const uint8_t *ciph
         case IMB_CIPHER_DOCSIS_DES:
                 des_key_schedule((uint64_t *) enc_keys, ciph_key);
                 break;
-        case IMB_CIPHER_SNOW3G_UEA2_BITLEN:
-        case IMB_CIPHER_KASUMI_UEA1_BITLEN:
+        case IMB_CIPHER_SNOW3G_UEA2:
+        case IMB_CIPHER_KASUMI_UEA1:
                 nosimd_memcpy(k2, ciph_key, 16);
                 break;
         case IMB_CIPHER_ZUC_EEA3:

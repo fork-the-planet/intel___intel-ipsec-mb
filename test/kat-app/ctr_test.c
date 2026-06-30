@@ -36,8 +36,6 @@
 
 #define MAX_CTR_JOBS 32
 
-#define BYTE_ROUND_UP(x) ((x + 7) / 8)
-
 int
 ctr_test(struct IMB_MGR *);
 
@@ -181,10 +179,7 @@ test_ctr_burst(struct IMB_MGR *mb_mgr, const void *expkey, unsigned key_len, con
                 job->iv = iv;
                 job->iv_len_in_bytes = iv_len;
                 job->cipher_start_src_offset_in_bytes = 0;
-                if (alg == IMB_CIPHER_CNTR)
-                        job->msg_len_to_cipher_in_bytes = text_byte_len;
-                else
-                        job->msg_len_to_cipher_in_bits = text_len;
+                job->msg_len_to_cipher_in_bytes = text_byte_len;
                 job->hash_alg = IMB_AUTH_NULL;
                 job->user_data = targets[i];
                 job->user_data2 = (void *) ((uint64_t) i);
@@ -293,10 +288,7 @@ test_ctr_cipher_burst(struct IMB_MGR *mb_mgr, const void *expkey, unsigned key_l
                 job->iv = iv;
                 job->iv_len_in_bytes = iv_len;
                 job->cipher_start_src_offset_in_bytes = 0;
-                if (alg == IMB_CIPHER_CNTR)
-                        job->msg_len_to_cipher_in_bytes = text_byte_len;
-                else
-                        job->msg_len_to_cipher_in_bits = text_len;
+                job->msg_len_to_cipher_in_bytes = text_byte_len;
                 job->hash_alg = IMB_AUTH_NULL;
                 job->user_data = targets[i];
                 job->user_data2 = (void *) ((uint64_t) i);

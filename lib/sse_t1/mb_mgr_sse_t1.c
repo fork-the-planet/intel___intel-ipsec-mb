@@ -234,9 +234,6 @@ submit_snow3g_uea2_job_sse(IMB_MGR *state, IMB_JOB *job)
 {
         MB_MGR_SNOW3G_OOO *snow3g_uea2_ooo = state->snow3g_uea2_ooo;
 
-        if ((job->msg_len_to_cipher_in_bits & 7) || (job->cipher_start_offset_in_bits & 7))
-                return def_submit_snow3g_uea2_job(state, job);
-
         return submit_job_snow3g_uea2_sse(snow3g_uea2_ooo, job);
 }
 
@@ -442,7 +439,6 @@ init_mb_mgr_sse_t1_internal(IMB_MGR *state, const int reset_mgrs)
         state->kasumi_init_f9_key_sched = kasumi_init_f9_key_sched_sse;
         state->kasumi_key_sched_size = kasumi_key_sched_size_sse;
 
-        state->snow3g_f8_1_buffer_bit = snow3g_f8_1_buffer_bit_sse;
         state->snow3g_f8_1_buffer = snow3g_f8_1_buffer_sse;
         state->snow3g_f8_2_buffer = snow3g_f8_2_buffer_sse;
         state->snow3g_f8_4_buffer = snow3g_f8_4_buffer_sse;

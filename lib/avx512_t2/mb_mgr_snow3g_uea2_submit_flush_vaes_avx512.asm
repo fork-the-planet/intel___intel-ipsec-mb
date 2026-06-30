@@ -138,10 +138,7 @@ mksection .text
         vmovdqa32       [state + _snow3g_lens_dw], zmm0
 
         ;; insert length into proper lane
-        ;; - convert from bits to bytes (round up)
-        mov             %%TGP0, [job + _msg_len_to_cipher_in_bits]
-        add             %%TGP0, 7
-        shr             %%TGP0, 3
+        mov             %%TGP0, [job + _msg_len_to_cipher_in_bytes]
         mov             [state + _snow3g_args_byte_length + %%LANE*8], %%TGP0
 
         cmp             qword [state + _snow3g_lanes_in_use], 16
@@ -297,8 +294,7 @@ align_label
 
         ;; set the correct in & out pointers
         mov             %%TGP0, [state + _snow3g_job_in_lane + %%LANE*8]
-        mov             %%TGP1, [%%TGP0 + _cipher_start_offset_in_bits]
-        shr             %%TGP1, 3               ;; convert from bits to bytes (src & dst)
+        mov             %%TGP1, [%%TGP0 + _cipher_start_src_offset_in_bytes]
 
         mov             %%TGP2, [%%TGP0 + _dst]
         mov             [state + _snow3g_args_out + %%LANE*8], %%TGP2

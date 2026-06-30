@@ -636,13 +636,6 @@ imb_kasumi_key_sched_size(IMB_MGR *state)
 }
 
 IMB_DLL_EXPORT void
-imb_snow3g_f8_1_buffer_bit(const snow3g_key_schedule_t *exp_key, const void *iv, const void *src,
-                           void *dst, const uint32_t len, const uint32_t offset, IMB_MGR *state)
-{
-        CALL_SNOW3G_F8_1_BUFFER_BIT(state, exp_key, iv, src, dst, len, offset);
-}
-
-IMB_DLL_EXPORT void
 imb_snow3g_f8_1_buffer(const snow3g_key_schedule_t *exp_key, const void *iv, const void *src,
                        void *dst, const uint32_t len, IMB_MGR *state)
 {

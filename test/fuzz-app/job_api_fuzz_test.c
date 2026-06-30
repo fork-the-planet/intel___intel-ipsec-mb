@@ -204,7 +204,6 @@ fill_additional_hash_data(struct IMB_JOB *job, void *buff, uint64_t buffsize)
                         job->u.CCM.aad_len_in_bytes = buffsize;
                 break;
         case IMB_AUTH_AES_CMAC:
-        case IMB_AUTH_AES_CMAC_BITLEN:
         case IMB_AUTH_AES_CMAC_256:
                 if (job->u.CMAC._key_expanded != NULL)
                         job->u.CMAC._key_expanded = buff;
@@ -213,7 +212,7 @@ fill_additional_hash_data(struct IMB_JOB *job, void *buff, uint64_t buffsize)
                 if (job->u.CMAC._skey2 != NULL)
                         job->u.CMAC._skey2 = buff;
                 break;
-        case IMB_AUTH_ZUC_EIA3_BITLEN:
+        case IMB_AUTH_ZUC_EIA3:
                 if (job->u.ZUC_EIA3._key != NULL)
                         job->u.ZUC_EIA3._key = (uint8_t *) buff;
                 if (job->u.ZUC_EIA3._iv != NULL)
@@ -235,7 +234,7 @@ fill_additional_hash_data(struct IMB_JOB *job, void *buff, uint64_t buffsize)
                 if (job->u.NCA.aad_len_in_bytes > buffsize)
                         job->u.NCA.aad_len_in_bytes = buffsize;
                 break;
-        case IMB_AUTH_SNOW3G_UIA2_BITLEN:
+        case IMB_AUTH_SNOW3G_UIA2:
                 if (job->u.SNOW3G_UIA2._key != NULL)
                         job->u.SNOW3G_UIA2._key = buff;
                 if (job->u.SNOW3G_UIA2._iv != NULL)
@@ -342,16 +341,14 @@ hash_selection(void)
                         return IMB_AUTH_SHA_384;
                 else if (strcmp(a, "IMB_AUTH_SHA_512") == 0)
                         return IMB_AUTH_SHA_512;
-                else if (strcmp(a, "IMB_AUTH_AES_CMAC_BITLEN") == 0)
-                        return IMB_AUTH_AES_CMAC_BITLEN;
                 else if (strcmp(a, "IMB_AUTH_PON_CRC_BIP") == 0)
                         return IMB_AUTH_PON_CRC_BIP;
-                else if (strcmp(a, "IMB_AUTH_ZUC_EIA3_BITLEN") == 0)
-                        return IMB_AUTH_ZUC_EIA3_BITLEN;
+                else if (strcmp(a, "IMB_AUTH_ZUC_EIA3") == 0)
+                        return IMB_AUTH_ZUC_EIA3;
                 else if (strcmp(a, "IMB_AUTH_DOCSIS_CRC32") == 0)
                         return IMB_AUTH_DOCSIS_CRC32;
-                else if (strcmp(a, "IMB_AUTH_SNOW3G_UIA2_BITLEN") == 0)
-                        return IMB_AUTH_SNOW3G_UIA2_BITLEN;
+                else if (strcmp(a, "IMB_AUTH_SNOW3G_UIA2") == 0)
+                        return IMB_AUTH_SNOW3G_UIA2;
                 else if (strcmp(a, "IMB_AUTH_KASUMI_UIA1") == 0)
                         return IMB_AUTH_KASUMI_UIA1;
                 else if (strcmp(a, "IMB_AUTH_AES_GMAC_128") == 0)
@@ -466,10 +463,10 @@ cipher_selection(void)
                         return IMB_CIPHER_ECB;
                 else if (strcmp(a, "IMB_CIPHER_ZUC_EEA3") == 0)
                         return IMB_CIPHER_ZUC_EEA3;
-                else if (strcmp(a, "IMB_CIPHER_SNOW3G_UEA2_BITLEN") == 0)
-                        return IMB_CIPHER_SNOW3G_UEA2_BITLEN;
-                else if (strcmp(a, "IMB_CIPHER_KASUMI_UEA1_BITLEN") == 0)
-                        return IMB_CIPHER_KASUMI_UEA1_BITLEN;
+                else if (strcmp(a, "IMB_CIPHER_SNOW3G_UEA2") == 0)
+                        return IMB_CIPHER_SNOW3G_UEA2;
+                else if (strcmp(a, "IMB_CIPHER_KASUMI_UEA1") == 0)
+                        return IMB_CIPHER_KASUMI_UEA1;
                 else if (strcmp(a, "IMB_CIPHER_CHACHA20") == 0)
                         return IMB_CIPHER_CHACHA20;
                 else if (strcmp(a, "IMB_CIPHER_CHACHA20_POLY1305") == 0)

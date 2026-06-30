@@ -482,13 +482,13 @@ SUBMIT_JOB_CIPHER_ENC(IMB_MGR *state, IMB_JOB *job, const IMB_CIPHER_MODE cipher
                 MB_MGR_ZUC_OOO *zuc_nea6_ooo = state->zuc_nea6_ooo;
 
                 return SUBMIT_JOB_ZUC_NEA6(zuc_nea6_ooo, job);
-        } else if (IMB_CIPHER_SNOW3G_UEA2_BITLEN == cipher_mode) {
+        } else if (IMB_CIPHER_SNOW3G_UEA2 == cipher_mode) {
 #ifdef SUBMIT_JOB_SNOW3G_UEA2
                 return SUBMIT_JOB_SNOW3G_UEA2(state, job);
 #else
                 return def_submit_snow3g_uea2_job(state, job);
 #endif
-        } else if (IMB_CIPHER_KASUMI_UEA1_BITLEN == cipher_mode) {
+        } else if (IMB_CIPHER_KASUMI_UEA1 == cipher_mode) {
                 return submit_kasumi_uea1_job(state, job);
         } else if (IMB_CIPHER_SNOW5G_NEA4 == cipher_mode) {
                 return SUBMIT_JOB_SNOW5G_NEA4(state, job);
@@ -611,7 +611,7 @@ FLUSH_JOB_CIPHER_ENC(IMB_MGR *state, IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                 return FLUSH_JOB_SNOW5G_NCA4_ENC_X2(snow5g_nca4_ooo);
 #endif
 #ifdef FLUSH_JOB_SNOW3G_UEA2
-        } else if (IMB_CIPHER_SNOW3G_UEA2_BITLEN == cipher_mode) {
+        } else if (IMB_CIPHER_SNOW3G_UEA2 == cipher_mode) {
                 return FLUSH_JOB_SNOW3G_UEA2(state);
 #endif
         } else if (IMB_CIPHER_CFB == cipher_mode) {
@@ -639,7 +639,7 @@ FLUSH_JOB_CIPHER_ENC(IMB_MGR *state, IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                 }
         } else {
                 /**
-                 * assume IMB_CIPHER_CNTR/CNTR_BITLEN, IMB_CIPHER_ECB,
+                 * assume IMB_CIPHER_CNTR, IMB_CIPHER_ECB,
                  * IMB_CIPHER_CCM, IMB_CIPHER_NULL or IMB_CIPHER_GCM
                  */
                 return NULL;
@@ -730,13 +730,13 @@ SUBMIT_JOB_CIPHER_DEC(IMB_MGR *state, IMB_JOB *job, const IMB_CIPHER_MODE cipher
                 MB_MGR_ZUC_OOO *zuc_nea6_ooo = state->zuc_nea6_ooo;
 
                 return SUBMIT_JOB_ZUC_NEA6(zuc_nea6_ooo, job);
-        } else if (IMB_CIPHER_SNOW3G_UEA2_BITLEN == cipher_mode) {
+        } else if (IMB_CIPHER_SNOW3G_UEA2 == cipher_mode) {
 #ifdef SUBMIT_JOB_SNOW3G_UEA2
                 return SUBMIT_JOB_SNOW3G_UEA2(state, job);
 #else
                 return def_submit_snow3g_uea2_job(state, job);
 #endif
-        } else if (IMB_CIPHER_KASUMI_UEA1_BITLEN == cipher_mode) {
+        } else if (IMB_CIPHER_KASUMI_UEA1 == cipher_mode) {
                 return submit_kasumi_uea1_job(state, job);
         } else if (IMB_CIPHER_SNOW5G_NEA4 == cipher_mode) {
                 return SUBMIT_JOB_SNOW5G_NEA4(state, job);
@@ -775,7 +775,7 @@ FLUSH_JOB_CIPHER_DEC(IMB_MGR *state, IMB_JOB *job, const IMB_CIPHER_MODE cipher_
         (void) key_sz;
 
 #ifdef FLUSH_JOB_SNOW3G_UEA2
-        if (IMB_CIPHER_SNOW3G_UEA2_BITLEN == cipher_mode)
+        if (IMB_CIPHER_SNOW3G_UEA2 == cipher_mode)
                 return FLUSH_JOB_SNOW3G_UEA2(state);
 #endif
 
@@ -991,16 +991,16 @@ submit_cipher_dec_zuc_nea6(IMB_MGR *state, IMB_JOB *job)
 
 /* SNOW3G UEA2 */
 static IMB_JOB *
-submit_cipher_dec_snow3g_uea2_bit(IMB_MGR *state, IMB_JOB *job)
+submit_cipher_dec_snow3g_uea2(IMB_MGR *state, IMB_JOB *job)
 {
-        return SUBMIT_JOB_CIPHER_DEC(state, job, IMB_CIPHER_SNOW3G_UEA2_BITLEN, IMB_KEY_128_BYTES);
+        return SUBMIT_JOB_CIPHER_DEC(state, job, IMB_CIPHER_SNOW3G_UEA2, IMB_KEY_128_BYTES);
 }
 
 /* KASUMI F8 UEA1 */
 static IMB_JOB *
-submit_cipher_dec_kasumi_uea1_bit(IMB_MGR *state, IMB_JOB *job)
+submit_cipher_dec_kasumi_uea1(IMB_MGR *state, IMB_JOB *job)
 {
-        return SUBMIT_JOB_CIPHER_DEC(state, job, IMB_CIPHER_KASUMI_UEA1_BITLEN, IMB_KEY_128_BYTES);
+        return SUBMIT_JOB_CIPHER_DEC(state, job, IMB_CIPHER_KASUMI_UEA1, IMB_KEY_128_BYTES);
 }
 
 /* CHACHA20 */
@@ -1278,16 +1278,16 @@ submit_cipher_enc_zuc_nea6(IMB_MGR *state, IMB_JOB *job)
 
 /* SNOW3G UEA2 */
 static IMB_JOB *
-submit_cipher_enc_snow3g_uea2_bit(IMB_MGR *state, IMB_JOB *job)
+submit_cipher_enc_snow3g_uea2(IMB_MGR *state, IMB_JOB *job)
 {
-        return SUBMIT_JOB_CIPHER_ENC(state, job, IMB_CIPHER_SNOW3G_UEA2_BITLEN, IMB_KEY_128_BYTES);
+        return SUBMIT_JOB_CIPHER_ENC(state, job, IMB_CIPHER_SNOW3G_UEA2, IMB_KEY_128_BYTES);
 }
 
 /* KASUMI F8 UEA1 */
 static IMB_JOB *
-submit_cipher_enc_kasumi_uea1_bit(IMB_MGR *state, IMB_JOB *job)
+submit_cipher_enc_kasumi_uea1(IMB_MGR *state, IMB_JOB *job)
 {
-        return SUBMIT_JOB_CIPHER_ENC(state, job, IMB_CIPHER_KASUMI_UEA1_BITLEN, IMB_KEY_128_BYTES);
+        return SUBMIT_JOB_CIPHER_ENC(state, job, IMB_CIPHER_KASUMI_UEA1, IMB_KEY_128_BYTES);
 }
 
 /* CHACHA20 */
@@ -1502,15 +1502,15 @@ static const submit_flush_fn_t tab_submit_cipher[] = {
         submit_cipher_dec_null,
         submit_cipher_dec_null,
         /* [14] SNOW3G UEA2 */
-        submit_cipher_dec_snow3g_uea2_bit,
-        submit_cipher_dec_snow3g_uea2_bit,
-        submit_cipher_dec_snow3g_uea2_bit,
-        submit_cipher_dec_snow3g_uea2_bit,
+        submit_cipher_dec_snow3g_uea2,
+        submit_cipher_dec_snow3g_uea2,
+        submit_cipher_dec_snow3g_uea2,
+        submit_cipher_dec_snow3g_uea2,
         /* [15] KASUMI F8 UEA1 */
-        submit_cipher_dec_kasumi_uea1_bit,
-        submit_cipher_dec_kasumi_uea1_bit,
-        submit_cipher_dec_kasumi_uea1_bit,
-        submit_cipher_dec_kasumi_uea1_bit,
+        submit_cipher_dec_kasumi_uea1,
+        submit_cipher_dec_kasumi_uea1,
+        submit_cipher_dec_kasumi_uea1,
+        submit_cipher_dec_kasumi_uea1,
         /* [16] CHACHA20 */
         submit_cipher_dec_chacha20,
         submit_cipher_dec_chacha20,
@@ -1668,15 +1668,15 @@ static const submit_flush_fn_t tab_submit_cipher[] = {
         submit_cipher_enc_null,
         submit_cipher_enc_null,
         /* [14] SNOW3G UEA2 */
-        submit_cipher_enc_snow3g_uea2_bit,
-        submit_cipher_enc_snow3g_uea2_bit,
-        submit_cipher_enc_snow3g_uea2_bit,
-        submit_cipher_enc_snow3g_uea2_bit,
+        submit_cipher_enc_snow3g_uea2,
+        submit_cipher_enc_snow3g_uea2,
+        submit_cipher_enc_snow3g_uea2,
+        submit_cipher_enc_snow3g_uea2,
         /* [15] KASUMI F8 UEA1 */
-        submit_cipher_enc_kasumi_uea1_bit,
-        submit_cipher_enc_kasumi_uea1_bit,
-        submit_cipher_enc_kasumi_uea1_bit,
-        submit_cipher_enc_kasumi_uea1_bit,
+        submit_cipher_enc_kasumi_uea1,
+        submit_cipher_enc_kasumi_uea1,
+        submit_cipher_enc_kasumi_uea1,
+        submit_cipher_enc_kasumi_uea1,
         /* [16] CHACHA20 */
         submit_cipher_enc_chacha20,
         submit_cipher_enc_chacha20,
@@ -1929,16 +1929,16 @@ flush_cipher_dec_zuc_nea6(IMB_MGR *state, IMB_JOB *job)
 
 /* SNOW3G UEA2 */
 static IMB_JOB *
-flush_cipher_dec_snow3g_uea2_bit(IMB_MGR *state, IMB_JOB *job)
+flush_cipher_dec_snow3g_uea2(IMB_MGR *state, IMB_JOB *job)
 {
-        return FLUSH_JOB_CIPHER_DEC(state, job, IMB_CIPHER_SNOW3G_UEA2_BITLEN, IMB_KEY_128_BYTES);
+        return FLUSH_JOB_CIPHER_DEC(state, job, IMB_CIPHER_SNOW3G_UEA2, IMB_KEY_128_BYTES);
 }
 
 /* KASUMI F8 UEA1 */
 static IMB_JOB *
-flush_cipher_dec_kasumi_uea1_bit(IMB_MGR *state, IMB_JOB *job)
+flush_cipher_dec_kasumi_uea1(IMB_MGR *state, IMB_JOB *job)
 {
-        return FLUSH_JOB_CIPHER_DEC(state, job, IMB_CIPHER_KASUMI_UEA1_BITLEN, IMB_KEY_128_BYTES);
+        return FLUSH_JOB_CIPHER_DEC(state, job, IMB_CIPHER_KASUMI_UEA1, IMB_KEY_128_BYTES);
 }
 
 /* CHACHA20 */
@@ -2226,16 +2226,16 @@ flush_cipher_enc_zuc_nea6(IMB_MGR *state, IMB_JOB *job)
 
 /* SNOW3G UEA2 */
 static IMB_JOB *
-flush_cipher_enc_snow3g_uea2_bit(IMB_MGR *state, IMB_JOB *job)
+flush_cipher_enc_snow3g_uea2(IMB_MGR *state, IMB_JOB *job)
 {
-        return FLUSH_JOB_CIPHER_ENC(state, job, IMB_CIPHER_SNOW3G_UEA2_BITLEN, IMB_KEY_128_BYTES);
+        return FLUSH_JOB_CIPHER_ENC(state, job, IMB_CIPHER_SNOW3G_UEA2, IMB_KEY_128_BYTES);
 }
 
 /* KASUMI F8 UEA1 */
 static IMB_JOB *
-flush_cipher_enc_kasumi_uea1_bit(IMB_MGR *state, IMB_JOB *job)
+flush_cipher_enc_kasumi_uea1(IMB_MGR *state, IMB_JOB *job)
 {
-        return FLUSH_JOB_CIPHER_ENC(state, job, IMB_CIPHER_KASUMI_UEA1_BITLEN, IMB_KEY_128_BYTES);
+        return FLUSH_JOB_CIPHER_ENC(state, job, IMB_CIPHER_KASUMI_UEA1, IMB_KEY_128_BYTES);
 }
 
 /* CHACHA20 */
@@ -2442,15 +2442,15 @@ static const submit_flush_fn_t tab_flush_cipher[] = {
         flush_cipher_dec_null,
         flush_cipher_dec_null,
         /* [14] SNOW3G UEA2 */
-        flush_cipher_dec_snow3g_uea2_bit,
-        flush_cipher_dec_snow3g_uea2_bit,
-        flush_cipher_dec_snow3g_uea2_bit,
-        flush_cipher_dec_snow3g_uea2_bit,
+        flush_cipher_dec_snow3g_uea2,
+        flush_cipher_dec_snow3g_uea2,
+        flush_cipher_dec_snow3g_uea2,
+        flush_cipher_dec_snow3g_uea2,
         /* [15] KASUMI F8 UEA1 */
-        flush_cipher_dec_kasumi_uea1_bit,
-        flush_cipher_dec_kasumi_uea1_bit,
-        flush_cipher_dec_kasumi_uea1_bit,
-        flush_cipher_dec_kasumi_uea1_bit,
+        flush_cipher_dec_kasumi_uea1,
+        flush_cipher_dec_kasumi_uea1,
+        flush_cipher_dec_kasumi_uea1,
+        flush_cipher_dec_kasumi_uea1,
         /* [16] CHACHA20 */
         flush_cipher_dec_chacha20,
         flush_cipher_dec_chacha20,
@@ -2607,15 +2607,15 @@ static const submit_flush_fn_t tab_flush_cipher[] = {
         flush_cipher_enc_null,
         flush_cipher_enc_null,
         /* [14] SNOW3G UEA2 */
-        flush_cipher_enc_snow3g_uea2_bit,
-        flush_cipher_enc_snow3g_uea2_bit,
-        flush_cipher_enc_snow3g_uea2_bit,
-        flush_cipher_enc_snow3g_uea2_bit,
+        flush_cipher_enc_snow3g_uea2,
+        flush_cipher_enc_snow3g_uea2,
+        flush_cipher_enc_snow3g_uea2,
+        flush_cipher_enc_snow3g_uea2,
         /* [15] KASUMI F8 UEA1 */
-        flush_cipher_enc_kasumi_uea1_bit,
-        flush_cipher_enc_kasumi_uea1_bit,
-        flush_cipher_enc_kasumi_uea1_bit,
-        flush_cipher_enc_kasumi_uea1_bit,
+        flush_cipher_enc_kasumi_uea1,
+        flush_cipher_enc_kasumi_uea1,
+        flush_cipher_enc_kasumi_uea1,
+        flush_cipher_enc_kasumi_uea1,
         /* [16] CHACHA20 */
         flush_cipher_enc_chacha20,
         flush_cipher_enc_chacha20,
@@ -2775,16 +2775,8 @@ SUBMIT_JOB_HASH_EX(IMB_MGR *state, IMB_JOB *job, const IMB_HASH_ALG hash_alg)
                         return SUBMIT_JOB_AES256_CCM_AUTH(aes256_ccm_ooo, job);
                 }
         case IMB_AUTH_AES_CMAC:
-                /*
-                 * CMAC OOO MGR assumes job len in bits
-                 * (for CMAC length is provided in bytes)
-                 */
-                job->msg_len_to_hash_in_bits = job->msg_len_to_hash_in_bytes * 8;
-                return SUBMIT_JOB_AES128_CMAC_AUTH(aes_cmac_ooo, job);
-        case IMB_AUTH_AES_CMAC_BITLEN:
                 return SUBMIT_JOB_AES128_CMAC_AUTH(aes_cmac_ooo, job);
         case IMB_AUTH_AES_CMAC_256:
-                job->msg_len_to_hash_in_bits = job->msg_len_to_hash_in_bytes * 8;
                 return SUBMIT_JOB_AES256_CMAC_AUTH(aes256_cmac_ooo, job);
         case IMB_AUTH_SHA_1:
                 return SUBMIT_JOB_SHA1(sha_1_ooo, job);
@@ -2796,26 +2788,26 @@ SUBMIT_JOB_HASH_EX(IMB_MGR *state, IMB_JOB *job, const IMB_HASH_ALG hash_alg)
                 return SUBMIT_JOB_SHA384(sha_384_ooo, job);
         case IMB_AUTH_SHA_512:
                 return SUBMIT_JOB_SHA512(sha_512_ooo, job);
-        case IMB_AUTH_ZUC_EIA3_BITLEN:
+        case IMB_AUTH_ZUC_EIA3:
                 return SUBMIT_JOB_ZUC_EIA3(zuc_eia3_ooo, job);
         case IMB_AUTH_ZUC_NIA6:
                 return SUBMIT_JOB_ZUC_NIA6(zuc_nia6_ooo, job);
-        case IMB_AUTH_SNOW3G_UIA2_BITLEN:
+        case IMB_AUTH_SNOW3G_UIA2:
 #if (defined(SAFE_LOOKUP) || defined(AVX512))
                 return SUBMIT_JOB_SNOW3G_UIA2(snow3g_uia2_ooo, job);
 #else
-                IMB_SNOW3G_F9_1_BUFFER(
+                CALL_SNOW3G_F9_1_BUFFER(
                         state, (const snow3g_key_schedule_t *) job->u.SNOW3G_UIA2._key,
                         job->u.SNOW3G_UIA2._iv, job->src + job->hash_start_src_offset_in_bytes,
-                        job->msg_len_to_hash_in_bits, job->auth_tag_output);
+                        job->msg_len_to_hash_in_bytes * 8, job->auth_tag_output);
                 job->status |= IMB_STATUS_COMPLETED_AUTH;
                 return job;
 #endif
         case IMB_AUTH_KASUMI_UIA1:
-                IMB_KASUMI_F9_1_BUFFER(state, (const kasumi_key_sched_t *) job->u.KASUMI_UIA1._key,
-                                       job->src + job->hash_start_src_offset_in_bytes,
-                                       (const uint32_t) job->msg_len_to_hash_in_bytes,
-                                       job->auth_tag_output);
+                CALL_KASUMI_F9_1_BUFFER(state, (const kasumi_key_sched_t *) job->u.KASUMI_UIA1._key,
+                                        job->src + job->hash_start_src_offset_in_bytes,
+                                        (const uint32_t) job->msg_len_to_hash_in_bytes,
+                                        job->auth_tag_output);
                 job->status |= IMB_STATUS_COMPLETED_AUTH;
                 return job;
         case IMB_AUTH_AES_GMAC_128:
@@ -3067,16 +3059,15 @@ FLUSH_JOB_HASH_EX(IMB_MGR *state, IMB_JOB *job, const IMB_HASH_ALG hash_alg)
                         return FLUSH_JOB_AES256_CCM_AUTH(aes256_ccm_ooo);
                 }
         case IMB_AUTH_AES_CMAC:
-        case IMB_AUTH_AES_CMAC_BITLEN:
                 return FLUSH_JOB_AES128_CMAC_AUTH(aes_cmac_ooo);
         case IMB_AUTH_AES_CMAC_256:
                 return FLUSH_JOB_AES256_CMAC_AUTH(aes256_cmac_ooo);
-        case IMB_AUTH_ZUC_EIA3_BITLEN:
+        case IMB_AUTH_ZUC_EIA3:
                 return FLUSH_JOB_ZUC_EIA3(zuc_eia3_ooo);
         case IMB_AUTH_ZUC_NIA6:
                 return FLUSH_JOB_ZUC_NIA6(zuc_nia6_ooo);
 #if (defined(SAFE_LOOKUP) || defined(AVX512))
-        case IMB_AUTH_SNOW3G_UIA2_BITLEN:
+        case IMB_AUTH_SNOW3G_UIA2:
                 return FLUSH_JOB_SNOW3G_UIA2(snow3g_uia2_ooo);
 #endif
 #ifdef FLUSH_JOB_SNOW5G_NIA4_X2
@@ -3212,21 +3203,15 @@ submit_hash_sha512(IMB_MGR *state, IMB_JOB *job)
 }
 
 static IMB_JOB *
-submit_hash_aes_cmac_bit(IMB_MGR *state, IMB_JOB *job)
-{
-        return SUBMIT_JOB_HASH_EX(state, job, IMB_AUTH_AES_CMAC_BITLEN);
-}
-
-static IMB_JOB *
 submit_hash_pon_crc_bip(IMB_MGR *state, IMB_JOB *job)
 {
         return SUBMIT_JOB_HASH_EX(state, job, IMB_AUTH_PON_CRC_BIP);
 }
 
 static IMB_JOB *
-submit_hash_zuc_eia3_bit(IMB_MGR *state, IMB_JOB *job)
+submit_hash_zuc_eia3(IMB_MGR *state, IMB_JOB *job)
 {
-        return SUBMIT_JOB_HASH_EX(state, job, IMB_AUTH_ZUC_EIA3_BITLEN);
+        return SUBMIT_JOB_HASH_EX(state, job, IMB_AUTH_ZUC_EIA3);
 }
 
 static IMB_JOB *
@@ -3236,9 +3221,9 @@ submit_hash_docsis_crc32(IMB_MGR *state, IMB_JOB *job)
 }
 
 static IMB_JOB *
-submit_hash_snow3g_uia2_bit(IMB_MGR *state, IMB_JOB *job)
+submit_hash_snow3g_uia2(IMB_MGR *state, IMB_JOB *job)
 {
-        return SUBMIT_JOB_HASH_EX(state, job, IMB_AUTH_SNOW3G_UIA2_BITLEN);
+        return SUBMIT_JOB_HASH_EX(state, job, IMB_AUTH_SNOW3G_UIA2);
 }
 
 static IMB_JOB *
@@ -3524,97 +3509,95 @@ static const submit_flush_fn_t tab_submit_hash[] = {
         submit_hash_sha384,
         /* [17] SHA512 */
         submit_hash_sha512,
-        /* [18] AES-CMAC BIT */
-        submit_hash_aes_cmac_bit,
-        /* [19] PON CRC BIP */
+        /* [18] PON CRC BIP */
         submit_hash_pon_crc_bip,
-        /* [20] ZUC EIA3 BIT */
-        submit_hash_zuc_eia3_bit,
-        /* [21] DOCSIS CRC32 */
+        /* [19] ZUC EIA3 */
+        submit_hash_zuc_eia3,
+        /* [20] DOCSIS CRC32 */
         submit_hash_docsis_crc32,
-        /* [22] SNOW3G UIA2 BIT */
-        submit_hash_snow3g_uia2_bit,
-        /* [23] KASUMI UIA1 */
+        /* [21] SNOW3G UIA2 */
+        submit_hash_snow3g_uia2,
+        /* [22] KASUMI UIA1 */
         submit_hash_kasumi_uia1,
-        /* [24] AES-GMAC-128 */
+        /* [23] AES-GMAC-128 */
         submit_hash_aes_gmac_128,
-        /* [25] AES-GMAC-192 */
+        /* [24] AES-GMAC-192 */
         submit_hash_aes_gmac_192,
-        /* [26] AES-GMAC-256 */
+        /* [25] AES-GMAC-256 */
         submit_hash_aes_gmac_256,
-        /* [27] AES-CMAC-256 */
+        /* [26] AES-CMAC-256 */
         submit_hash_aes_cmac_256,
-        /* [28] POLY1305 */
+        /* [27] POLY1305 */
         submit_hash_poly1305,
-        /* [29] CHACHA20-POLY1305 */
+        /* [28] CHACHA20-POLY1305 */
         submit_hash_chacha20_poly1305,
-        /* [30] CHACHA20-POLY1305 SGL */
+        /* [29] CHACHA20-POLY1305 SGL */
         submit_hash_chacha20_poly1305_sgl,
-        /* [31] GCM SGL */
+        /* [30] GCM SGL */
         submit_hash_gcm_sgl,
-        /* [32] CRC32 ETHERNET FCS */
+        /* [31] CRC32 ETHERNET FCS */
         submit_hash_crc32_ethernet_fcs,
-        /* [33] CRC32 SCTP */
+        /* [32] CRC32 SCTP */
         submit_hash_crc32_sctp,
-        /* [34] CRC32 WIMAX OFDMA DATA */
+        /* [33] CRC32 WIMAX OFDMA DATA */
         submit_hash_crc32_wimax_ofdma,
-        /* [35] CRC24 LTE A */
+        /* [34] CRC24 LTE A */
         submit_hash_crc24_lte_a,
-        /* [36] CRC24 LTE B */
+        /* [35] CRC24 LTE B */
         submit_hash_crc24_lte_b,
-        /* [37] CRC16 X25 */
+        /* [36] CRC16 X25 */
         submit_hash_crc16_x25,
-        /* [38] CRC16 FP DATA */
+        /* [37] CRC16 FP DATA */
         submit_hash_crc16_fp_data,
-        /* [39] CRC11 FP HEADER */
+        /* [38] CRC11 FP HEADER */
         submit_hash_crc11_fp_header,
-        /* [40] CRC10 IUUP DATA */
+        /* [39] CRC10 IUUP DATA */
         submit_hash_crc10_iuup_data,
-        /* [41] CRC8 WIMAX OFDMA HCS */
+        /* [40] CRC8 WIMAX OFDMA HCS */
         submit_hash_crc8_wimax_odma,
-        /* [42] CRC7 FP HEADER */
+        /* [41] CRC7 FP HEADER */
         submit_hash_crc7_fp_header,
-        /* [43] CRC6 IUUP HEADER */
+        /* [42] CRC6 IUUP HEADER */
         submit_hash_crc6_iuup_header,
-        /* [44] GHASH */
+        /* [43] GHASH */
         submit_hash_ghash,
-        /* [45] SM3 */
+        /* [44] SM3 */
         submit_hash_sm3,
-        /* [46] HMAC-SM3 */
+        /* [45] HMAC-SM3 */
         submit_hash_hmac_sm3,
-        /* [47] SM4-GCM */
+        /* [46] SM4-GCM */
         submit_hash_sm4_gcm,
-        /* [48] SHA3-224 */
+        /* [47] SHA3-224 */
         submit_hash_sha3_224,
-        /* [49] SHA3-256 */
+        /* [48] SHA3-256 */
         submit_hash_sha3_256,
-        /* [50] SHA3-384 */
+        /* [49] SHA3-384 */
         submit_hash_sha3_384,
-        /* [51] SHA3-512 */
+        /* [50] SHA3-512 */
         submit_hash_sha3_512,
-        /* [52] SHAKE128 */
+        /* [51] SHAKE128 */
         submit_hash_shake128,
-        /* [53] SHAKE256 */
+        /* [52] SHAKE256 */
         submit_hash_shake256,
-        /* [54] AES-NIA5 */
+        /* [53] AES-NIA5 */
         submit_hash_aes_nia5,
-        /* [55] AES-NCA5 */
+        /* [54] AES-NCA5 */
         submit_hash_aes_nca5,
-        /* [52] ZUC-NIA6 */
+        /* [55] ZUC-NIA6 */
         submit_hash_zuc_nia6,
-        /* [53] ZUC-NCA6 */
+        /* [56] ZUC-NCA6 */
         submit_hash_zuc_nca6,
-        /* [54] SNOW5G NIA4 */
+        /* [57] SNOW5G NIA4 */
         submit_hash_snow5g_nia4,
-        /* [55] SNOW5G NCA4 */
+        /* [58] SNOW5G NCA4 */
         submit_hash_snow5g_nca4,
-        /* [56] HMAC-SHA3-224 */
+        /* [59] HMAC-SHA3-224 */
         submit_hash_hmac_sha3_224,
-        /* [57] HMAC-SHA3-256 */
+        /* [60] HMAC-SHA3-256 */
         submit_hash_hmac_sha3_256,
-        /* [58] HMAC-SHA3-384 */
+        /* [61] HMAC-SHA3-384 */
         submit_hash_hmac_sha3_384,
-        /* [59] HMAC-SHA3-512 */
+        /* [62] HMAC-SHA3-512 */
         submit_hash_hmac_sha3_512,
 };
 
@@ -3725,21 +3708,15 @@ flush_hash_sha512(IMB_MGR *state, IMB_JOB *job)
 }
 
 static IMB_JOB *
-flush_hash_aes_cmac_bit(IMB_MGR *state, IMB_JOB *job)
-{
-        return FLUSH_JOB_HASH_EX(state, job, IMB_AUTH_AES_CMAC_BITLEN);
-}
-
-static IMB_JOB *
 flush_hash_pon_crc_bip(IMB_MGR *state, IMB_JOB *job)
 {
         return FLUSH_JOB_HASH_EX(state, job, IMB_AUTH_PON_CRC_BIP);
 }
 
 static IMB_JOB *
-flush_hash_zuc_eia3_bit(IMB_MGR *state, IMB_JOB *job)
+flush_hash_zuc_eia3(IMB_MGR *state, IMB_JOB *job)
 {
-        return FLUSH_JOB_HASH_EX(state, job, IMB_AUTH_ZUC_EIA3_BITLEN);
+        return FLUSH_JOB_HASH_EX(state, job, IMB_AUTH_ZUC_EIA3);
 }
 
 static IMB_JOB *
@@ -3749,9 +3726,9 @@ flush_hash_docsis_crc32(IMB_MGR *state, IMB_JOB *job)
 }
 
 static IMB_JOB *
-flush_hash_snow3g_uia2_bit(IMB_MGR *state, IMB_JOB *job)
+flush_hash_snow3g_uia2(IMB_MGR *state, IMB_JOB *job)
 {
-        return FLUSH_JOB_HASH_EX(state, job, IMB_AUTH_SNOW3G_UIA2_BITLEN);
+        return FLUSH_JOB_HASH_EX(state, job, IMB_AUTH_SNOW3G_UIA2);
 }
 
 static IMB_JOB *
@@ -4038,97 +4015,95 @@ static const submit_flush_fn_t tab_flush_hash[] = {
         flush_hash_sha384,
         /* [17] SHA512 */
         flush_hash_sha512,
-        /* [18] AES-CMAC BIT */
-        flush_hash_aes_cmac_bit,
-        /* [19] PON CRC BIP */
+        /* [18] PON CRC BIP */
         flush_hash_pon_crc_bip,
-        /* [20] ZUC EIA3 BIT */
-        flush_hash_zuc_eia3_bit,
-        /* [21] DOCSIS CRC32 */
+        /* [19] ZUC EIA3 */
+        flush_hash_zuc_eia3,
+        /* [20] DOCSIS CRC32 */
         flush_hash_docsis_crc32,
-        /* [22] SNOW3G UIA2 BIT */
-        flush_hash_snow3g_uia2_bit,
-        /* [23] KASUMI UIA1 */
+        /* [21] SNOW3G UIA2 */
+        flush_hash_snow3g_uia2,
+        /* [22] KASUMI UIA1 */
         flush_hash_kasumi_uia1,
-        /* [24] AES-GMAC-128 */
+        /* [23] AES-GMAC-128 */
         flush_hash_aes_gmac_128,
-        /* [25] AES-GMAC-192 */
+        /* [24] AES-GMAC-192 */
         flush_hash_aes_gmac_192,
-        /* [26] AES-GMAC-256 */
+        /* [25] AES-GMAC-256 */
         flush_hash_aes_gmac_256,
-        /* [27] AES-CMAC-256 */
+        /* [26] AES-CMAC-256 */
         flush_hash_aes_cmac_256,
-        /* [28] POLY1305 */
+        /* [27] POLY1305 */
         flush_hash_poly1305,
-        /* [29] CHACHA20-POLY1305 */
+        /* [28] CHACHA20-POLY1305 */
         flush_hash_chacha20_poly1305,
-        /* [30] CHACHA20-POLY1305 SGL */
+        /* [29] CHACHA20-POLY1305 SGL */
         flush_hash_chacha20_poly1305_sgl,
-        /* [31] GCM SGL */
+        /* [30] GCM SGL */
         flush_hash_gcm_sgl,
-        /* [32] CRC32 ETHERNET FCS */
+        /* [31] CRC32 ETHERNET FCS */
         flush_hash_crc32_ethernet_fcs,
-        /* [33] CRC32 SCTP */
+        /* [32] CRC32 SCTP */
         flush_hash_crc32_sctp,
-        /* [34] CRC32 WIMAX OFDMA DATA */
+        /* [33] CRC32 WIMAX OFDMA DATA */
         flush_hash_crc32_wimax_ofdma,
-        /* [35] CRC24 LTE A */
+        /* [34] CRC24 LTE A */
         flush_hash_crc24_lte_a,
-        /* [36] CRC24 LTE B */
+        /* [35] CRC24 LTE B */
         flush_hash_crc24_lte_b,
-        /* [37] CRC16 X25 */
+        /* [36] CRC16 X25 */
         flush_hash_crc16_x25,
-        /* [38] CRC16 FP DATA */
+        /* [37] CRC16 FP DATA */
         flush_hash_crc16_fp_data,
-        /* [39] CRC11 FP HEADER */
+        /* [38] CRC11 FP HEADER */
         flush_hash_crc11_fp_header,
-        /* [40] CRC10 IUUP DATA */
+        /* [39] CRC10 IUUP DATA */
         flush_hash_crc10_iuup_data,
-        /* [41] CRC8 WIMAX OFDMA HCS */
+        /* [40] CRC8 WIMAX OFDMA HCS */
         flush_hash_crc8_wimax_odma,
-        /* [42] CRC7 FP HEADER */
+        /* [41] CRC7 FP HEADER */
         flush_hash_crc7_fp_header,
-        /* [43] CRC6 IUUP HEADER */
+        /* [42] CRC6 IUUP HEADER */
         flush_hash_crc6_iuup_header,
-        /* [44] GHASH */
+        /* [43] GHASH */
         flush_hash_ghash,
-        /* [45] SM3 */
+        /* [44] SM3 */
         flush_hash_sm3,
-        /* [46] HMAC-SM3 */
+        /* [45] HMAC-SM3 */
         flush_hash_hmac_sm3,
-        /* [47] SM4-GCM */
+        /* [46] SM4-GCM */
         flush_hash_sm4_gcm,
-        /* [48] SHA3-224 */
+        /* [47] SHA3-224 */
         flush_hash_sha3_224,
-        /* [49] SHA3-256 */
+        /* [48] SHA3-256 */
         flush_hash_sha3_256,
-        /* [50] SHA3-384 */
+        /* [49] SHA3-384 */
         flush_hash_sha3_384,
-        /* [51] SHA3-512 */
+        /* [50] SHA3-512 */
         flush_hash_sha3_512,
-        /* [52] SHAKE128 */
+        /* [51] SHAKE128 */
         flush_hash_shake128,
-        /* [53] SHAKE256 */
+        /* [52] SHAKE256 */
         flush_hash_shake256,
-        /* [54] AES-NIA5 */
+        /* [53] AES-NIA5 */
         flush_hash_aes_nia5,
-        /* [55] AES-NCA5 */
+        /* [54] AES-NCA5 */
         flush_hash_aes_nca5,
-        /* [56] ZUC-NIA6 */
+        /* [55] ZUC-NIA6 */
         flush_hash_zuc_nia6,
-        /* [57] ZUC-NCA6 */
+        /* [56] ZUC-NCA6 */
         flush_hash_zuc_nca6,
-        /* [54] SNOW5G-NIA4 */
+        /* [57] SNOW5G-NIA4 */
         flush_hash_snow5g_nia4,
-        /* [55] SNOW5G-NCA4 */
+        /* [58] SNOW5G-NCA4 */
         flush_hash_snow5g_nca4,
-        /* [56] HMAC-SHA3-224 */
+        /* [59] HMAC-SHA3-224 */
         flush_hash_hmac_sha3_224,
-        /* [57] HMAC-SHA3-256 */
+        /* [60] HMAC-SHA3-256 */
         flush_hash_hmac_sha3_256,
-        /* [58] HMAC-SHA3-384 */
+        /* [61] HMAC-SHA3-384 */
         flush_hash_hmac_sha3_384,
-        /* [59] HMAC-SHA3-512 */
+        /* [62] HMAC-SHA3-512 */
         flush_hash_hmac_sha3_512,
 };
 

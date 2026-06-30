@@ -228,12 +228,12 @@ static const struct cipher_test_vec cipher_tests[] = {
         /* ZUC-EEA3 (3GPP cipher) */
         { "ZUC-EEA3-ENC", IMB_CIPHER_ZUC_EEA3, IMB_DIR_ENCRYPT, 16, 16 },
         { "ZUC-EEA3-DEC", IMB_CIPHER_ZUC_EEA3, IMB_DIR_DECRYPT, 16, 16 },
-        /* SNOW3G-UEA2 (3GPP cipher, bitlen) */
-        { "SNOW3G-UEA2-ENC", IMB_CIPHER_SNOW3G_UEA2_BITLEN, IMB_DIR_ENCRYPT, 16, 16 },
-        { "SNOW3G-UEA2-DEC", IMB_CIPHER_SNOW3G_UEA2_BITLEN, IMB_DIR_DECRYPT, 16, 16 },
-        /* KASUMI-UEA1 (3GPP cipher, bitlen) */
-        { "KASUMI-UEA1-ENC", IMB_CIPHER_KASUMI_UEA1_BITLEN, IMB_DIR_ENCRYPT, 16, 8 },
-        { "KASUMI-UEA1-DEC", IMB_CIPHER_KASUMI_UEA1_BITLEN, IMB_DIR_DECRYPT, 16, 8 },
+        /* SNOW3G-UEA2 (3GPP cipher) */
+        { "SNOW3G-UEA2-ENC", IMB_CIPHER_SNOW3G_UEA2, IMB_DIR_ENCRYPT, 16, 16 },
+        { "SNOW3G-UEA2-DEC", IMB_CIPHER_SNOW3G_UEA2, IMB_DIR_DECRYPT, 16, 16 },
+        /* KASUMI-UEA1 (3GPP cipher) */
+        { "KASUMI-UEA1-ENC", IMB_CIPHER_KASUMI_UEA1, IMB_DIR_ENCRYPT, 16, 8 },
+        { "KASUMI-UEA1-DEC", IMB_CIPHER_KASUMI_UEA1, IMB_DIR_DECRYPT, 16, 8 },
         /* 5G NEA cipher algorithms */
         { "AES-NEA5-ENC", IMB_CIPHER_AES_NEA5, IMB_DIR_ENCRYPT, 32, 16 },
         { "AES-NEA5-DEC", IMB_CIPHER_AES_NEA5, IMB_DIR_DECRYPT, 32, 16 },
@@ -481,7 +481,6 @@ static const struct hash_test_vec hash_tests[] = {
         /* AES-CMAC */
         { "AES-CMAC", IMB_AUTH_AES_CMAC, 16, HASH_CMAC },
         { "AES-CMAC-256", IMB_AUTH_AES_CMAC_256, 16, HASH_CMAC },
-        { "AES-CMAC-BITLEN", IMB_AUTH_AES_CMAC_BITLEN, 4, HASH_CMAC },
         /* AES-GMAC (standalone, not paired with GCM cipher) */
         { "AES-GMAC-128", IMB_AUTH_AES_GMAC_128, 16, HASH_GMAC },
         { "AES-GMAC-192", IMB_AUTH_AES_GMAC_192, 16, HASH_GMAC },
@@ -504,8 +503,8 @@ static const struct hash_test_vec hash_tests[] = {
         { "CRC7-FP-HDR", IMB_AUTH_CRC7_FP_HEADER, 4, HASH_PLAIN },
         { "CRC6-IUUP-HDR", IMB_AUTH_CRC6_IUUP_HEADER, 4, HASH_PLAIN },
         /* 3GPP integrity algorithms */
-        { "ZUC-EIA3", IMB_AUTH_ZUC_EIA3_BITLEN, 4, HASH_ZUC },
-        { "SNOW3G-UIA2", IMB_AUTH_SNOW3G_UIA2_BITLEN, 4, HASH_SNOW3G },
+        { "ZUC-EIA3", IMB_AUTH_ZUC_EIA3, 4, HASH_ZUC },
+        { "SNOW3G-UIA2", IMB_AUTH_SNOW3G_UIA2, 4, HASH_SNOW3G },
         { "KASUMI-UIA1", IMB_AUTH_KASUMI_UIA1, 4, HASH_KASUMI },
         /* SHA3 */
         { "SHA3-224", IMB_AUTH_SHA3_224, 28, HASH_PLAIN },

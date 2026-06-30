@@ -21,6 +21,7 @@ Library
 - Added SHA3-224, SHA3-256, SHA3-384 and SHA3-512 base implementations.
 - Added SHAKE128 and SHAKE256 base implementations.
 - Removed KASUMI bit-length support and corresponding API.
+- Removed non-byte-aligned message length/offset support from wireless job APIs and direct APIs (AES-CMAC, ZUC-EIA3, SNOW3G-UIA2/UEA2, KASUMI-UEA1).
 - Added support for zero-length messages in HMAC-SHA and HMAC-MD5 algorithms.
 - Added ZUC-NEA6 SSE, AVX2 and AVX512 implementations.
 - Added SNOW5G-NEA4 SSE type 1 and AVX512 type 2 implementations.
@@ -36,6 +37,7 @@ Library
 
 Test Applications
 - Added `--offset` parameter to `imb-xvalid` application.
+- Removed bit-length message/offset test coverage paths for wireless algorithms and switched applications to byte-only lengths.
 - Added AVX10 architecture support.
 - Removed AES-CTR bit-length variant.
 - Removed AES-CBCS 1:9 cipher.

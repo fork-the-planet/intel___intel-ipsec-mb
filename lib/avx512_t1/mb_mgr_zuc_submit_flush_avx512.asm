@@ -680,7 +680,8 @@ align_label
         mov     [state + _zuc_args_keys + lane*8], tmp
 
         ;; insert len into proper lane
-        mov     len, [job + _msg_len_to_hash_in_bits]
+        mov     len, [job + _msg_len_to_hash_in_bytes]
+        shl     len, 3
 
         ;; Update lane len
         vmovdqa64       ymm0, [state + _zuc_lens]
@@ -1019,7 +1020,7 @@ align_label
         mov     [state + _zuc_args_out + lane*8], tmp
 
         ;; insert len into proper lane
-        mov     len, [job + _msg_len_to_hash_in_bits]
+        mov     len, [job + _msg_len_to_hash_in_bytes]
 
         vmovdqa64       ymm0, [state + _zuc_lens]
         vpbroadcastw    ymm1, WORD(len)

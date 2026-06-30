@@ -105,7 +105,6 @@ set(HASH_ALGOS
   sha384
   sha512
   null
-  aes-cmac-bitlen
   zuc-eia3
   snow3g-uia2
   kasumi-uia1
@@ -240,7 +239,6 @@ set(HASH_BURST_API_ALGOS
   sha384-hmac
   sha512-hmac
   aes-cmac
-  aes-cmac-bitlen
   sha1
   sha224
   sha256

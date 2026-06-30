@@ -152,22 +152,6 @@ test_snow3g_init_key_sched(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
 }
 
 static int
-test_snow3g_f8_1_buff_bit(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
-{
-        if (snow3g_start())
-                return -1;
-
-        const size_t dataSizeBits = dataSize * 8;
-        const size_t offsetBits = buff[0] % dataSizeBits;
-        const uint64_t lenBits = dataSizeBits - offsetBits;
-
-        IMB_SNOW3G_F8_1_BUFFER_BIT(p_mgr, snow3g_exp_key, snow3g_iv, buff, buff, lenBits,
-                                   offsetBits);
-        snow3g_end();
-        return 0;
-}
-
-static int
 test_snow3g_f8_1_buff(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
 {
         if (snow3g_start())
@@ -949,7 +933,7 @@ test_zuc_eia3_n_buff(IMB_MGR *p_mgr, uint8_t *buff, size_t dataSize)
                 zuc_end();
                 return -1;
         }
-        test_zuc_mb_set1(&ts, zuc_key, zuc_iv, buff, NULL, dataSize * 8, zuc_tag);
+        test_zuc_mb_set1(&ts, zuc_key, zuc_iv, buff, NULL, dataSize, zuc_tag);
         IMB_ZUC_EIA3_N_BUFFER(p_mgr, ts.key, ts.iv, ts.in, ts.len, ts.tag, n);
         test_zuc_mb_free(&ts);
         zuc_end();
@@ -2223,7 +2207,6 @@ struct {
         { test_imb_des_cfb_one_block, "test_imb_des_cfb_one_block" },
 
         { test_snow3g_init_key_sched, "test_snow3g_init_key_sched" },
-        { test_snow3g_f8_1_buff_bit, "test_snow3g_f8_1_buff_bit" },
         { test_snow3g_f8_1_buff, "test_snow3g_f8_1_buff" },
         { test_snow3g_f8_2_buff, "test_snow3g_f8_2_buff" },
         { test_snow3g_f8_4_buff, "test_snow3g_f8_4_buff" },

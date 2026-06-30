@@ -733,7 +733,10 @@ FLUSH_JOB_ZUC_NEA6:
         mov     [state + _zuc_args_out + lane*8], tmp
 
         ;; insert len into proper lane
-        mov     len, [job + _msg_len_to_hash_in_bits]
+        mov     len, [job + _msg_len_to_hash_in_bytes]
+%ifidn %%ALGO, ZUC128
+        shl     len, 3
+%endif
 
         movdqa  xmm0, [state + _zuc_lens]
         XPINSRW xmm0, xmm1, tmp, lane, len, scale_x16

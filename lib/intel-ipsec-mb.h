@@ -400,9 +400,9 @@ typedef enum {
         IMB_CIPHER_PON_AES_CNTR,
         IMB_CIPHER_PON_AES_CTR = IMB_CIPHER_PON_AES_CNTR,
         IMB_CIPHER_ECB,
-        IMB_CIPHER_ZUC_EEA3,           /**< 128-EEA3/NEA3 (3GPP) */
-        IMB_CIPHER_SNOW3G_UEA2_BITLEN, /**< 128-UEA2 (3GPP) */
-        IMB_CIPHER_KASUMI_UEA1_BITLEN, /**< 128-UEA1 (3GPP) */
+        IMB_CIPHER_ZUC_EEA3,    /**< 128-EEA3/NEA3 (3GPP) */
+        IMB_CIPHER_SNOW3G_UEA2, /**< 128-UEA2 (3GPP) */
+        IMB_CIPHER_KASUMI_UEA1, /**< 128-UEA1 (3GPP) */
         IMB_CIPHER_CHACHA20,
         IMB_CIPHER_CHACHA20_POLY1305,     /**< AEAD CHACHA20 */
         IMB_CIPHER_CHACHA20_POLY1305_SGL, /**< AEAD CHACHA20 with SGL support*/
@@ -435,18 +435,17 @@ typedef enum {
         IMB_AUTH_NULL,
         IMB_AUTH_AES_GMAC,
         IMB_AUTH_CUSTOM,
-        IMB_AUTH_AES_CCM,         /**< AES128-CCM */
-        IMB_AUTH_AES_CMAC,        /**< AES128-CMAC */
-        IMB_AUTH_SHA_1,           /**< SHA1 */
-        IMB_AUTH_SHA_224,         /**< SHA224 */
-        IMB_AUTH_SHA_256,         /**< SHA256 */
-        IMB_AUTH_SHA_384,         /**< SHA384 */
-        IMB_AUTH_SHA_512,         /**< SHA512 */
-        IMB_AUTH_AES_CMAC_BITLEN, /**< 128-EIA2/NIA2 (3GPP) */
+        IMB_AUTH_AES_CCM,  /**< AES128-CCM */
+        IMB_AUTH_AES_CMAC, /**< AES128-CMAC */
+        IMB_AUTH_SHA_1,    /**< SHA1 */
+        IMB_AUTH_SHA_224,  /**< SHA224 */
+        IMB_AUTH_SHA_256,  /**< SHA256 */
+        IMB_AUTH_SHA_384,  /**< SHA384 */
+        IMB_AUTH_SHA_512,  /**< SHA512 */
         IMB_AUTH_PON_CRC_BIP,
-        IMB_AUTH_ZUC_EIA3_BITLEN,        /**< 128-EIA3/NIA3 (3GPP) */
+        IMB_AUTH_ZUC_EIA3,               /**< 128-EIA3/NIA3 (3GPP) */
         IMB_AUTH_DOCSIS_CRC32,           /**< with DOCSIS_SEC_BPI only */
-        IMB_AUTH_SNOW3G_UIA2_BITLEN,     /**< 128-UIA2 (3GPP) */
+        IMB_AUTH_SNOW3G_UIA2,            /**< 128-UIA2 (3GPP) */
         IMB_AUTH_KASUMI_UIA1,            /**< 128-UIA1 (3GPP) */
         IMB_AUTH_AES_GMAC_128,           /**< AES-GMAC (128-bit key) */
         IMB_AUTH_AES_GMAC_192,           /**< AES-GMAC (192-bit key) */
@@ -531,7 +530,7 @@ struct IMB_SGL_IOV {
  *
  * Cipher offset only applies to src pointer, not dst pointer.
  * In case of an in-place operation, dst pointer needs to point
- * at src + cipher_start_src_offset_in_bytes/bits.
+ * at src + cipher_start_src_offset_in_bytes.
  */
 typedef struct IMB_JOB {
         const void *enc_keys;      /**< Encryption key pointer */
@@ -554,23 +553,15 @@ typedef struct IMB_JOB {
         union {
                 uint64_t cipher_start_src_offset_in_bytes;
                 /**< Offset into input buffer to start ciphering (in bytes) */
-                uint64_t cipher_start_src_offset_in_bits;
-                /**< Offset into input buffer to start ciphering (in bits) */
-                uint64_t cipher_start_offset_in_bits;
-                /**< Offset into input buffer to start ciphering (in bits) */
         }; /**< Offset into input buffer to start ciphering */
         union {
                 uint64_t msg_len_to_cipher_in_bytes;
                 /**< Length of message to cipher (in bytes) */
-                uint64_t msg_len_to_cipher_in_bits;
-                /**< Length of message to cipher (in bits) */
         }; /**< Length of message to cipher */
         uint64_t hash_start_src_offset_in_bytes;
         union {
                 uint64_t msg_len_to_hash_in_bytes;
                 /**< Length of message to hash (in bytes) */
-                uint64_t msg_len_to_hash_in_bits;
-                /**< Length of message to hash (in bits) */
         }; /**< Length of message to hash */
         const uint8_t *iv;                     /**< Initialization Vector (IV) */
         uint64_t iv_len_in_bytes;              /**< IV length in bytes */
@@ -2910,28 +2901,7 @@ snow3g_f9_iv_gen(const uint32_t count, const uint32_t fresh, const uint8_t dir, 
  *                           iv[0] = pIV[2]
  * @param [in]  src          Input buffer
  * @param [out] dst          Output buffer
- * @param [in]  len          Length in bits of input buffer
- * @param [in]  offset       Offset in input/output buffer (in bits)
- * @param [in] state  Pointer to initialized IMB_MGR structure
- *
- * @deprecated Please use the job API instead.
- */
-IMB_DLL_EXPORT void
-imb_snow3g_f8_1_buffer_bit(const snow3g_key_schedule_t *exp_key, const void *iv, const void *src,
-                           void *dst, const uint32_t len, const uint32_t offset, IMB_MGR *state);
-
-/**
- * This function performs snow3g f8 operation on a single buffer. The key has
- * already been scheduled with snow3g_init_key_sched().
- *
- * @param [in]  exp_key      Context where the scheduled keys are stored
- * @param [in]  iv           iv[3] = count
- *                           iv[2] = (bearer << 27) | ((dir & 0x1) << 26)
- *                           iv[1] = pIV[3]
- *                           iv[0] = pIV[2]
- * @param [in]  src          Input buffer
- * @param [out] dst          Output buffer
- * @param [in]  len          Length in bits of input buffer
+ * @param [in]  len          Length in bytes of input buffer
  * @param [in] state  Pointer to initialized IMB_MGR structure
  *
  * @deprecated Please use the job API instead.
@@ -3450,8 +3420,6 @@ imb_clear_mem(void *mem, const size_t size);
         imb_kasumi_init_f9_key_sched(_key, _exp_key, _mgr)
 #define IMB_KASUMI_KEY_SCHED_SIZE(_mgr) imb_kasumi_key_sched_size(_mgr)
 
-#define IMB_SNOW3G_F8_1_BUFFER_BIT(_mgr, _exp_key, _iv, _src, _dst, _len, _offset)                 \
-        imb_snow3g_f8_1_buffer_bit(_exp_key, _iv, _src, _dst, _len, _offset, _mgr)
 #define IMB_SNOW3G_F8_1_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len)                              \
         imb_snow3g_f8_1_buffer(_exp_key, _iv, _src, _dst, _len, _mgr)
 #define IMB_SNOW3G_F8_2_BUFFER(_mgr, _exp_key, _iv1, _iv2, _src1, _dst1, _len1, _src2, _dst2,      \

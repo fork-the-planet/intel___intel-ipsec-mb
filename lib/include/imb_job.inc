@@ -165,14 +165,10 @@ END_FIELDS
 %assign _IMB_JOB_align  _STRUCT_ALIGN
 
 %assign _msg_len_to_cipher_in_bytes _msg_len_to_cipher
-%assign _msg_len_to_cipher_in_bits  _msg_len_to_cipher
 
 %assign _msg_len_to_hash_in_bytes _msg_len_to_hash
-%assign _msg_len_to_hash_in_bits  _msg_len_to_hash
 
 %assign _cipher_start_src_offset_in_bytes _cipher_start_src_offset
-%assign _cipher_start_src_offset_in_bits  _cipher_start_src_offset
-%assign _cipher_start_offset_in_bits      _cipher_start_src_offset
 
 %assign _hash_start_src_offset_in_bytes _hash_start_src_offset
 

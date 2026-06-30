@@ -274,7 +274,6 @@ struct cipher_test_vec {
         unsigned key_len;         /**< key length in bytes */
         unsigned iv_len;          /**< IV length in bytes */
         unsigned msg_len;         /**< message length (set by runner) */
-        int use_bitlen;           /**< 1 if msg_len_to_cipher_in_bits is used */
         unsigned min_len;         /**< minimum test length in bytes */
         unsigned step;            /**< length increment step */
 };
@@ -282,71 +281,71 @@ struct cipher_test_vec {
 /** Table of cipher algorithms to test */
 static const struct cipher_test_vec cipher_tests[] = {
         /* AES-CBC (block size 16) */
-        { "AES-128-CBC-DEC", IMB_CIPHER_CBC, IMB_DIR_DECRYPT, 16, 16, 16, 0, 16, 16 },
-        { "AES-192-CBC-DEC", IMB_CIPHER_CBC, IMB_DIR_DECRYPT, 24, 16, 16, 0, 16, 16 },
-        { "AES-256-CBC-DEC", IMB_CIPHER_CBC, IMB_DIR_DECRYPT, 32, 16, 16, 0, 16, 16 },
-        { "AES-128-CBC-ENC", IMB_CIPHER_CBC, IMB_DIR_ENCRYPT, 16, 16, 16, 0, 16, 16 },
-        { "AES-192-CBC-ENC", IMB_CIPHER_CBC, IMB_DIR_ENCRYPT, 24, 16, 16, 0, 16, 16 },
-        { "AES-256-CBC-ENC", IMB_CIPHER_CBC, IMB_DIR_ENCRYPT, 32, 16, 16, 0, 16, 16 },
+        { "AES-128-CBC-DEC", IMB_CIPHER_CBC, IMB_DIR_DECRYPT, 16, 16, 16, 16, 16 },
+        { "AES-192-CBC-DEC", IMB_CIPHER_CBC, IMB_DIR_DECRYPT, 24, 16, 16, 16, 16 },
+        { "AES-256-CBC-DEC", IMB_CIPHER_CBC, IMB_DIR_DECRYPT, 32, 16, 16, 16, 16 },
+        { "AES-128-CBC-ENC", IMB_CIPHER_CBC, IMB_DIR_ENCRYPT, 16, 16, 16, 16, 16 },
+        { "AES-192-CBC-ENC", IMB_CIPHER_CBC, IMB_DIR_ENCRYPT, 24, 16, 16, 16, 16 },
+        { "AES-256-CBC-ENC", IMB_CIPHER_CBC, IMB_DIR_ENCRYPT, 32, 16, 16, 16, 16 },
         /* AES-CTR (stream) */
-        { "AES-128-CTR-ENC", IMB_CIPHER_CNTR, IMB_DIR_ENCRYPT, 16, 16, 1, 0, 1, 1 },
-        { "AES-192-CTR-ENC", IMB_CIPHER_CNTR, IMB_DIR_ENCRYPT, 24, 16, 1, 0, 1, 1 },
-        { "AES-256-CTR-ENC", IMB_CIPHER_CNTR, IMB_DIR_ENCRYPT, 32, 16, 1, 0, 1, 1 },
-        { "AES-128-CTR-DEC", IMB_CIPHER_CNTR, IMB_DIR_DECRYPT, 16, 16, 1, 0, 1, 1 },
-        { "AES-192-CTR-DEC", IMB_CIPHER_CNTR, IMB_DIR_DECRYPT, 24, 16, 1, 0, 1, 1 },
-        { "AES-256-CTR-DEC", IMB_CIPHER_CNTR, IMB_DIR_DECRYPT, 32, 16, 1, 0, 1, 1 },
+        { "AES-128-CTR-ENC", IMB_CIPHER_CNTR, IMB_DIR_ENCRYPT, 16, 16, 1, 1, 1 },
+        { "AES-192-CTR-ENC", IMB_CIPHER_CNTR, IMB_DIR_ENCRYPT, 24, 16, 1, 1, 1 },
+        { "AES-256-CTR-ENC", IMB_CIPHER_CNTR, IMB_DIR_ENCRYPT, 32, 16, 1, 1, 1 },
+        { "AES-128-CTR-DEC", IMB_CIPHER_CNTR, IMB_DIR_DECRYPT, 16, 16, 1, 1, 1 },
+        { "AES-192-CTR-DEC", IMB_CIPHER_CNTR, IMB_DIR_DECRYPT, 24, 16, 1, 1, 1 },
+        { "AES-256-CTR-DEC", IMB_CIPHER_CNTR, IMB_DIR_DECRYPT, 32, 16, 1, 1, 1 },
         /* AES-ECB (block size 16) */
-        { "AES-128-ECB-ENC", IMB_CIPHER_ECB, IMB_DIR_ENCRYPT, 16, 0, 16, 0, 16, 16 },
-        { "AES-128-ECB-DEC", IMB_CIPHER_ECB, IMB_DIR_DECRYPT, 16, 0, 16, 0, 16, 16 },
-        { "AES-192-ECB-ENC", IMB_CIPHER_ECB, IMB_DIR_ENCRYPT, 24, 0, 16, 0, 16, 16 },
-        { "AES-192-ECB-DEC", IMB_CIPHER_ECB, IMB_DIR_DECRYPT, 24, 0, 16, 0, 16, 16 },
-        { "AES-256-ECB-ENC", IMB_CIPHER_ECB, IMB_DIR_ENCRYPT, 32, 0, 16, 0, 16, 16 },
-        { "AES-256-ECB-DEC", IMB_CIPHER_ECB, IMB_DIR_DECRYPT, 32, 0, 16, 0, 16, 16 },
+        { "AES-128-ECB-ENC", IMB_CIPHER_ECB, IMB_DIR_ENCRYPT, 16, 0, 16, 16, 16 },
+        { "AES-128-ECB-DEC", IMB_CIPHER_ECB, IMB_DIR_DECRYPT, 16, 0, 16, 16, 16 },
+        { "AES-192-ECB-ENC", IMB_CIPHER_ECB, IMB_DIR_ENCRYPT, 24, 0, 16, 16, 16 },
+        { "AES-192-ECB-DEC", IMB_CIPHER_ECB, IMB_DIR_DECRYPT, 24, 0, 16, 16, 16 },
+        { "AES-256-ECB-ENC", IMB_CIPHER_ECB, IMB_DIR_ENCRYPT, 32, 0, 16, 16, 16 },
+        { "AES-256-ECB-DEC", IMB_CIPHER_ECB, IMB_DIR_DECRYPT, 32, 0, 16, 16, 16 },
         /* AES-CFB (stream) */
-        { "AES-128-CFB-ENC", IMB_CIPHER_CFB, IMB_DIR_ENCRYPT, 16, 16, 1, 0, 1, 1 },
-        { "AES-128-CFB-DEC", IMB_CIPHER_CFB, IMB_DIR_DECRYPT, 16, 16, 1, 0, 1, 1 },
+        { "AES-128-CFB-ENC", IMB_CIPHER_CFB, IMB_DIR_ENCRYPT, 16, 16, 1, 1, 1 },
+        { "AES-128-CFB-DEC", IMB_CIPHER_CFB, IMB_DIR_DECRYPT, 16, 16, 1, 1, 1 },
         /* DES-CBC (block size 8) */
-        { "DES-CBC-ENC", IMB_CIPHER_DES, IMB_DIR_ENCRYPT, 8, 8, 8, 0, 8, 8 },
-        { "DES-CBC-DEC", IMB_CIPHER_DES, IMB_DIR_DECRYPT, 8, 8, 8, 0, 8, 8 },
+        { "DES-CBC-ENC", IMB_CIPHER_DES, IMB_DIR_ENCRYPT, 8, 8, 8, 8, 8 },
+        { "DES-CBC-DEC", IMB_CIPHER_DES, IMB_DIR_DECRYPT, 8, 8, 8, 8, 8 },
         /* 3DES-CBC (block size 8) */
-        { "3DES-CBC-ENC", IMB_CIPHER_DES3, IMB_DIR_ENCRYPT, 24, 8, 8, 0, 8, 8 },
-        { "3DES-CBC-DEC", IMB_CIPHER_DES3, IMB_DIR_DECRYPT, 24, 8, 8, 0, 8, 8 },
+        { "3DES-CBC-ENC", IMB_CIPHER_DES3, IMB_DIR_ENCRYPT, 24, 8, 8, 8, 8 },
+        { "3DES-CBC-DEC", IMB_CIPHER_DES3, IMB_DIR_DECRYPT, 24, 8, 8, 8, 8 },
         /* DOCSIS-DES (partial blocks) */
-        { "DOCSIS-DES-ENC", IMB_CIPHER_DOCSIS_DES, IMB_DIR_ENCRYPT, 8, 8, 1, 0, 1, 1 },
-        { "DOCSIS-DES-DEC", IMB_CIPHER_DOCSIS_DES, IMB_DIR_DECRYPT, 8, 8, 1, 0, 1, 1 },
+        { "DOCSIS-DES-ENC", IMB_CIPHER_DOCSIS_DES, IMB_DIR_ENCRYPT, 8, 8, 1, 1, 1 },
+        { "DOCSIS-DES-DEC", IMB_CIPHER_DOCSIS_DES, IMB_DIR_DECRYPT, 8, 8, 1, 1, 1 },
         /* DOCSIS-SEC-BPI (partial blocks) */
-        { "DOCSIS-BPI-ENC", IMB_CIPHER_DOCSIS_SEC_BPI, IMB_DIR_ENCRYPT, 16, 16, 1, 0, 1, 1 },
-        { "DOCSIS-BPI-DEC", IMB_CIPHER_DOCSIS_SEC_BPI, IMB_DIR_DECRYPT, 16, 16, 1, 0, 1, 1 },
+        { "DOCSIS-BPI-ENC", IMB_CIPHER_DOCSIS_SEC_BPI, IMB_DIR_ENCRYPT, 16, 16, 1, 1, 1 },
+        { "DOCSIS-BPI-DEC", IMB_CIPHER_DOCSIS_SEC_BPI, IMB_DIR_DECRYPT, 16, 16, 1, 1, 1 },
         /* CHACHA20 (stream) */
-        { "CHACHA20-ENC", IMB_CIPHER_CHACHA20, IMB_DIR_ENCRYPT, 32, 12, 1, 0, 1, 1 },
-        { "CHACHA20-DEC", IMB_CIPHER_CHACHA20, IMB_DIR_DECRYPT, 32, 12, 1, 0, 1, 1 },
+        { "CHACHA20-ENC", IMB_CIPHER_CHACHA20, IMB_DIR_ENCRYPT, 32, 12, 1, 1, 1 },
+        { "CHACHA20-DEC", IMB_CIPHER_CHACHA20, IMB_DIR_DECRYPT, 32, 12, 1, 1, 1 },
         /* SM4-ECB (block size 16) */
-        { "SM4-ECB-ENC", IMB_CIPHER_SM4_ECB, IMB_DIR_ENCRYPT, 16, 0, 16, 0, 16, 16 },
-        { "SM4-ECB-DEC", IMB_CIPHER_SM4_ECB, IMB_DIR_DECRYPT, 16, 0, 16, 0, 16, 16 },
+        { "SM4-ECB-ENC", IMB_CIPHER_SM4_ECB, IMB_DIR_ENCRYPT, 16, 0, 16, 16, 16 },
+        { "SM4-ECB-DEC", IMB_CIPHER_SM4_ECB, IMB_DIR_DECRYPT, 16, 0, 16, 16, 16 },
         /* SM4-CBC (block size 16) */
-        { "SM4-CBC-ENC", IMB_CIPHER_SM4_CBC, IMB_DIR_ENCRYPT, 16, 16, 16, 0, 16, 16 },
-        { "SM4-CBC-DEC", IMB_CIPHER_SM4_CBC, IMB_DIR_DECRYPT, 16, 16, 16, 0, 16, 16 },
+        { "SM4-CBC-ENC", IMB_CIPHER_SM4_CBC, IMB_DIR_ENCRYPT, 16, 16, 16, 16, 16 },
+        { "SM4-CBC-DEC", IMB_CIPHER_SM4_CBC, IMB_DIR_DECRYPT, 16, 16, 16, 16, 16 },
         /* SM4-CTR (stream) */
-        { "SM4-CTR-ENC", IMB_CIPHER_SM4_CNTR, IMB_DIR_ENCRYPT, 16, 16, 1, 0, 1, 1 },
-        { "SM4-CTR-DEC", IMB_CIPHER_SM4_CNTR, IMB_DIR_DECRYPT, 16, 16, 1, 0, 1, 1 },
+        { "SM4-CTR-ENC", IMB_CIPHER_SM4_CNTR, IMB_DIR_ENCRYPT, 16, 16, 1, 1, 1 },
+        { "SM4-CTR-DEC", IMB_CIPHER_SM4_CNTR, IMB_DIR_DECRYPT, 16, 16, 1, 1, 1 },
         /* ZUC-EEA3 (stream) */
-        { "ZUC-EEA3-ENC", IMB_CIPHER_ZUC_EEA3, IMB_DIR_ENCRYPT, 16, 16, 1, 0, 1, 1 },
-        { "ZUC-EEA3-DEC", IMB_CIPHER_ZUC_EEA3, IMB_DIR_DECRYPT, 16, 16, 1, 0, 1, 1 },
-        /* SNOW3G-UEA2 (stream, bitlen) */
-        { "SNOW3G-UEA2-ENC", IMB_CIPHER_SNOW3G_UEA2_BITLEN, IMB_DIR_ENCRYPT, 16, 16, 1, 1, 1, 1 },
-        { "SNOW3G-UEA2-DEC", IMB_CIPHER_SNOW3G_UEA2_BITLEN, IMB_DIR_DECRYPT, 16, 16, 1, 1, 1, 1 },
-        /* KASUMI-UEA1 (stream, bitlen) */
-        { "KASUMI-UEA1-ENC", IMB_CIPHER_KASUMI_UEA1_BITLEN, IMB_DIR_ENCRYPT, 16, 8, 1, 1, 1, 1 },
-        { "KASUMI-UEA1-DEC", IMB_CIPHER_KASUMI_UEA1_BITLEN, IMB_DIR_DECRYPT, 16, 8, 1, 1, 1, 1 },
+        { "ZUC-EEA3-ENC", IMB_CIPHER_ZUC_EEA3, IMB_DIR_ENCRYPT, 16, 16, 1, 1, 1 },
+        { "ZUC-EEA3-DEC", IMB_CIPHER_ZUC_EEA3, IMB_DIR_DECRYPT, 16, 16, 1, 1, 1 },
+        /* SNOW3G-UEA2 (stream) */
+        { "SNOW3G-UEA2-ENC", IMB_CIPHER_SNOW3G_UEA2, IMB_DIR_ENCRYPT, 16, 16, 1, 1, 1 },
+        { "SNOW3G-UEA2-DEC", IMB_CIPHER_SNOW3G_UEA2, IMB_DIR_DECRYPT, 16, 16, 1, 1, 1 },
+        /* KASUMI-UEA1 (stream) */
+        { "KASUMI-UEA1-ENC", IMB_CIPHER_KASUMI_UEA1, IMB_DIR_ENCRYPT, 16, 8, 1, 1, 1 },
+        { "KASUMI-UEA1-DEC", IMB_CIPHER_KASUMI_UEA1, IMB_DIR_DECRYPT, 16, 8, 1, 1, 1 },
         /* AES-NEA5 (stream) */
-        { "AES-NEA5-ENC", IMB_CIPHER_AES_NEA5, IMB_DIR_ENCRYPT, 32, 16, 1, 0, 1, 1 },
-        { "AES-NEA5-DEC", IMB_CIPHER_AES_NEA5, IMB_DIR_DECRYPT, 32, 16, 1, 0, 1, 1 },
+        { "AES-NEA5-ENC", IMB_CIPHER_AES_NEA5, IMB_DIR_ENCRYPT, 32, 16, 1, 1, 1 },
+        { "AES-NEA5-DEC", IMB_CIPHER_AES_NEA5, IMB_DIR_DECRYPT, 32, 16, 1, 1, 1 },
         /* ZUC-NEA6 (stream) */
-        { "ZUC-NEA6-ENC", IMB_CIPHER_ZUC_NEA6, IMB_DIR_ENCRYPT, 32, 16, 1, 0, 1, 1 },
-        { "ZUC-NEA6-DEC", IMB_CIPHER_ZUC_NEA6, IMB_DIR_DECRYPT, 32, 16, 1, 0, 1, 1 },
+        { "ZUC-NEA6-ENC", IMB_CIPHER_ZUC_NEA6, IMB_DIR_ENCRYPT, 32, 16, 1, 1, 1 },
+        { "ZUC-NEA6-DEC", IMB_CIPHER_ZUC_NEA6, IMB_DIR_DECRYPT, 32, 16, 1, 1, 1 },
         /* SNOW5G-NEA4 (stream) */
-        { "SNOW5G-NEA4-ENC", IMB_CIPHER_SNOW5G_NEA4, IMB_DIR_ENCRYPT, 32, 16, 1, 0, 1, 1 },
-        { "SNOW5G-NEA4-DEC", IMB_CIPHER_SNOW5G_NEA4, IMB_DIR_DECRYPT, 32, 16, 1, 0, 1, 1 },
+        { "SNOW5G-NEA4-ENC", IMB_CIPHER_SNOW5G_NEA4, IMB_DIR_ENCRYPT, 32, 16, 1, 1, 1 },
+        { "SNOW5G-NEA4-DEC", IMB_CIPHER_SNOW5G_NEA4, IMB_DIR_DECRYPT, 32, 16, 1, 1, 1 },
 };
 
 /**
@@ -373,13 +372,8 @@ setup_cipher_job(IMB_JOB *job, const struct cipher_test_vec *tv, const uint8_t *
         job->hash_alg = IMB_AUTH_NULL;
         job->key_len_in_bytes = tv->key_len;
 
-        if (tv->use_bitlen) {
-                job->cipher_start_src_offset_in_bits = 0;
-                job->msg_len_to_cipher_in_bits = (uint64_t) tv->msg_len * 8;
-        } else {
-                job->cipher_start_src_offset_in_bytes = 0;
-                job->msg_len_to_cipher_in_bytes = tv->msg_len;
-        }
+        job->cipher_start_src_offset_in_bytes = 0;
+        job->msg_len_to_cipher_in_bytes = tv->msg_len;
 
         if (tv->cipher == IMB_CIPHER_DES3) {
                 job->enc_keys = ks_ptrs;
@@ -632,7 +626,6 @@ struct hash_test_vec {
         unsigned iv_len;       /**< IV length in bytes (0 if not used) */
         enum hash_setup setup; /**< which union fields to configure */
         unsigned msg_len;      /**< message length (set by runner) */
-        int use_bitlen;        /**< 1 if msg_len_to_hash_in_bits is used */
         unsigned min_len;      /**< minimum test length in bytes */
         unsigned step;         /**< length increment step */
 };
@@ -640,71 +633,70 @@ struct hash_test_vec {
 /** Table of hash algorithms to test */
 static const struct hash_test_vec hash_tests[] = {
         /* HMAC -- tag range 4..digest_len, step 1 */
-        { "HMAC-SHA-1", IMB_AUTH_HMAC_SHA_1, 12, 4, 20, 1, 0, HASH_HMAC, 1, 0, 1, 1 },
-        { "HMAC-SHA-224", IMB_AUTH_HMAC_SHA_224, 14, 4, 28, 1, 0, HASH_HMAC, 1, 0, 1, 1 },
-        { "HMAC-SHA-256", IMB_AUTH_HMAC_SHA_256, 16, 4, 32, 1, 0, HASH_HMAC, 1, 0, 1, 1 },
-        { "HMAC-SHA-384", IMB_AUTH_HMAC_SHA_384, 24, 4, 48, 1, 0, HASH_HMAC, 1, 0, 1, 1 },
-        { "HMAC-SHA-512", IMB_AUTH_HMAC_SHA_512, 32, 4, 64, 1, 0, HASH_HMAC, 1, 0, 1, 1 },
+        { "HMAC-SHA-1", IMB_AUTH_HMAC_SHA_1, 12, 4, 20, 1, 0, HASH_HMAC, 1, 1, 1 },
+        { "HMAC-SHA-224", IMB_AUTH_HMAC_SHA_224, 14, 4, 28, 1, 0, HASH_HMAC, 1, 1, 1 },
+        { "HMAC-SHA-256", IMB_AUTH_HMAC_SHA_256, 16, 4, 32, 1, 0, HASH_HMAC, 1, 1, 1 },
+        { "HMAC-SHA-384", IMB_AUTH_HMAC_SHA_384, 24, 4, 48, 1, 0, HASH_HMAC, 1, 1, 1 },
+        { "HMAC-SHA-512", IMB_AUTH_HMAC_SHA_512, 32, 4, 64, 1, 0, HASH_HMAC, 1, 1, 1 },
         /* HMAC-MD5 -- only 12 (ipsec) or 16 (fips) accepted */
-        { "HMAC-MD5", IMB_AUTH_MD5, 12, 12, 16, 4, 0, HASH_HMAC, 1, 0, 1, 1 },
+        { "HMAC-MD5", IMB_AUTH_MD5, 12, 12, 16, 4, 0, HASH_HMAC, 1, 1, 1 },
         /* HMAC-SM3 -- tag range 1..32, step 1 */
-        { "HMAC-SM3", IMB_AUTH_HMAC_SM3, 32, 1, 32, 1, 0, HASH_HMAC, 1, 0, 1, 1 },
+        { "HMAC-SM3", IMB_AUTH_HMAC_SM3, 32, 1, 32, 1, 0, HASH_HMAC, 1, 1, 1 },
         /* SHA (plain) -- fixed tag size only */
-        { "SHA-1", IMB_AUTH_SHA_1, 20, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "SHA-224", IMB_AUTH_SHA_224, 28, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "SHA-256", IMB_AUTH_SHA_256, 32, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "SHA-384", IMB_AUTH_SHA_384, 48, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "SHA-512", IMB_AUTH_SHA_512, 64, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
+        { "SHA-1", IMB_AUTH_SHA_1, 20, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "SHA-224", IMB_AUTH_SHA_224, 28, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "SHA-256", IMB_AUTH_SHA_256, 32, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "SHA-384", IMB_AUTH_SHA_384, 48, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "SHA-512", IMB_AUTH_SHA_512, 64, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
         /* SM3 -- tag range 1..32, step 1 */
-        { "SM3", IMB_AUTH_SM3, 32, 1, 32, 1, 0, HASH_PLAIN, 1, 0, 1, 1 },
+        { "SM3", IMB_AUTH_SM3, 32, 1, 32, 1, 0, HASH_PLAIN, 1, 1, 1 },
         /* AES-XCBC -- fixed 12 only */
-        { "AES-XCBC", IMB_AUTH_AES_XCBC, 12, 0, 0, 0, 0, HASH_XCBC, 1, 0, 1, 1 },
+        { "AES-XCBC", IMB_AUTH_AES_XCBC, 12, 0, 0, 0, 0, HASH_XCBC, 1, 1, 1 },
         /* AES-CMAC -- tag range 1..16, step 1 */
-        { "AES-CMAC", IMB_AUTH_AES_CMAC, 16, 1, 16, 1, 0, HASH_CMAC, 1, 0, 1, 1 },
-        { "AES-CMAC-256", IMB_AUTH_AES_CMAC_256, 16, 1, 16, 1, 0, HASH_CMAC, 1, 0, 1, 1 },
-        { "AES-CMAC-BITLEN", IMB_AUTH_AES_CMAC_BITLEN, 4, 1, 16, 1, 0, HASH_CMAC, 1, 1, 1, 1 },
+        { "AES-CMAC", IMB_AUTH_AES_CMAC, 16, 1, 16, 1, 0, HASH_CMAC, 1, 1, 1 },
+        { "AES-CMAC-256", IMB_AUTH_AES_CMAC_256, 16, 1, 16, 1, 0, HASH_CMAC, 1, 1, 1 },
         /* AES-GMAC (standalone) -- tag range 1..16, step 1 */
-        { "AES-GMAC-128", IMB_AUTH_AES_GMAC_128, 16, 1, 16, 1, 12, HASH_GMAC, 1, 0, 1, 1 },
-        { "AES-GMAC-192", IMB_AUTH_AES_GMAC_192, 16, 1, 16, 1, 12, HASH_GMAC, 1, 0, 1, 1 },
-        { "AES-GMAC-256", IMB_AUTH_AES_GMAC_256, 16, 1, 16, 1, 12, HASH_GMAC, 1, 0, 1, 1 },
+        { "AES-GMAC-128", IMB_AUTH_AES_GMAC_128, 16, 1, 16, 1, 12, HASH_GMAC, 1, 1, 1 },
+        { "AES-GMAC-192", IMB_AUTH_AES_GMAC_192, 16, 1, 16, 1, 12, HASH_GMAC, 1, 1, 1 },
+        { "AES-GMAC-256", IMB_AUTH_AES_GMAC_256, 16, 1, 16, 1, 12, HASH_GMAC, 1, 1, 1 },
         /* GHASH -- fixed 16 only (implementation always writes 16 bytes) */
-        { "GHASH", IMB_AUTH_GHASH, 16, 0, 0, 0, 0, HASH_GHASH, 16, 0, 16, 16 },
+        { "GHASH", IMB_AUTH_GHASH, 16, 0, 0, 0, 0, HASH_GHASH, 16, 16, 16 },
         /* POLY1305 -- fixed 16 only */
-        { "POLY1305", IMB_AUTH_POLY1305, 16, 0, 0, 0, 0, HASH_POLY1305, 1, 0, 1, 1 },
+        { "POLY1305", IMB_AUTH_POLY1305, 16, 0, 0, 0, 0, HASH_POLY1305, 1, 1, 1 },
         /* CRC variants -- fixed 4 only */
-        { "CRC32-ETH-FCS", IMB_AUTH_CRC32_ETHERNET_FCS, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "CRC32-SCTP", IMB_AUTH_CRC32_SCTP, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "CRC32-WIMAX", IMB_AUTH_CRC32_WIMAX_OFDMA_DATA, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "CRC24-LTE-A", IMB_AUTH_CRC24_LTE_A, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "CRC24-LTE-B", IMB_AUTH_CRC24_LTE_B, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "CRC16-X25", IMB_AUTH_CRC16_X25, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "CRC16-FP-DATA", IMB_AUTH_CRC16_FP_DATA, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "CRC11-FP-HDR", IMB_AUTH_CRC11_FP_HEADER, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "CRC10-IUUP", IMB_AUTH_CRC10_IUUP_DATA, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "CRC8-WIMAX-HCS", IMB_AUTH_CRC8_WIMAX_OFDMA_HCS, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "CRC7-FP-HDR", IMB_AUTH_CRC7_FP_HEADER, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "CRC6-IUUP-HDR", IMB_AUTH_CRC6_IUUP_HEADER, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
+        { "CRC32-ETH-FCS", IMB_AUTH_CRC32_ETHERNET_FCS, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "CRC32-SCTP", IMB_AUTH_CRC32_SCTP, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "CRC32-WIMAX", IMB_AUTH_CRC32_WIMAX_OFDMA_DATA, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "CRC24-LTE-A", IMB_AUTH_CRC24_LTE_A, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "CRC24-LTE-B", IMB_AUTH_CRC24_LTE_B, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "CRC16-X25", IMB_AUTH_CRC16_X25, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "CRC16-FP-DATA", IMB_AUTH_CRC16_FP_DATA, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "CRC11-FP-HDR", IMB_AUTH_CRC11_FP_HEADER, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "CRC10-IUUP", IMB_AUTH_CRC10_IUUP_DATA, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "CRC8-WIMAX-HCS", IMB_AUTH_CRC8_WIMAX_OFDMA_HCS, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "CRC7-FP-HDR", IMB_AUTH_CRC7_FP_HEADER, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "CRC6-IUUP-HDR", IMB_AUTH_CRC6_IUUP_HEADER, 4, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
         /* 3GPP integrity algorithms -- fixed 4 only */
-        { "ZUC-EIA3", IMB_AUTH_ZUC_EIA3_BITLEN, 4, 0, 0, 0, 16, HASH_ZUC, 1, 1, 1, 1 },
-        { "SNOW3G-UIA2", IMB_AUTH_SNOW3G_UIA2_BITLEN, 4, 0, 0, 0, 16, HASH_SNOW3G, 1, 1, 1, 1 },
-        { "KASUMI-UIA1", IMB_AUTH_KASUMI_UIA1, 4, 0, 0, 0, 0, HASH_KASUMI, 1, 0, 1, 1 },
+        { "ZUC-EIA3", IMB_AUTH_ZUC_EIA3, 4, 0, 0, 0, 16, HASH_ZUC, 1, 1, 1 },
+        { "SNOW3G-UIA2", IMB_AUTH_SNOW3G_UIA2, 4, 0, 0, 0, 16, HASH_SNOW3G, 1, 1, 1 },
+        { "KASUMI-UIA1", IMB_AUTH_KASUMI_UIA1, 4, 0, 0, 0, 0, HASH_KASUMI, 1, 1, 1 },
         /* SHA3 -- fixed tag size only */
-        { "SHA3-224", IMB_AUTH_SHA3_224, 28, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "SHA3-256", IMB_AUTH_SHA3_256, 32, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "SHA3-384", IMB_AUTH_SHA3_384, 48, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "SHA3-512", IMB_AUTH_SHA3_512, 64, 0, 0, 0, 0, HASH_PLAIN, 1, 0, 1, 1 },
+        { "SHA3-224", IMB_AUTH_SHA3_224, 28, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "SHA3-256", IMB_AUTH_SHA3_256, 32, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "SHA3-384", IMB_AUTH_SHA3_384, 48, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
+        { "SHA3-512", IMB_AUTH_SHA3_512, 64, 0, 0, 0, 0, HASH_PLAIN, 1, 1, 1 },
         /* HMAC-SHA3 -- tag range 4..digest_size, step 1 */
-        { "HMAC-SHA3-224", IMB_AUTH_HMAC_SHA3_224, 28, 4, 28, 1, 0, HASH_HMAC, 1, 0, 1, 1 },
-        { "HMAC-SHA3-256", IMB_AUTH_HMAC_SHA3_256, 32, 4, 32, 1, 0, HASH_HMAC, 1, 0, 1, 1 },
-        { "HMAC-SHA3-384", IMB_AUTH_HMAC_SHA3_384, 48, 4, 48, 1, 0, HASH_HMAC, 1, 0, 1, 1 },
-        { "HMAC-SHA3-512", IMB_AUTH_HMAC_SHA3_512, 64, 4, 64, 1, 0, HASH_HMAC, 1, 0, 1, 1 },
+        { "HMAC-SHA3-224", IMB_AUTH_HMAC_SHA3_224, 28, 4, 28, 1, 0, HASH_HMAC, 1, 1, 1 },
+        { "HMAC-SHA3-256", IMB_AUTH_HMAC_SHA3_256, 32, 4, 32, 1, 0, HASH_HMAC, 1, 1, 1 },
+        { "HMAC-SHA3-384", IMB_AUTH_HMAC_SHA3_384, 48, 4, 48, 1, 0, HASH_HMAC, 1, 1, 1 },
+        { "HMAC-SHA3-512", IMB_AUTH_HMAC_SHA3_512, 64, 4, 64, 1, 0, HASH_HMAC, 1, 1, 1 },
         /* SHAKE -- tag range 1..16, step 1 (variable, no check constraint) */
-        { "SHAKE128", IMB_AUTH_SHAKE128, 16, 1, 16, 1, 0, HASH_PLAIN, 1, 0, 1, 1 },
-        { "SHAKE256", IMB_AUTH_SHAKE256, 32, 1, 32, 1, 0, HASH_PLAIN, 1, 0, 1, 1 },
+        { "SHAKE128", IMB_AUTH_SHAKE128, 16, 1, 16, 1, 0, HASH_PLAIN, 1, 1, 1 },
+        { "SHAKE256", IMB_AUTH_SHAKE256, 32, 1, 32, 1, 0, HASH_PLAIN, 1, 1, 1 },
         /* 5G NIA integrity algorithms -- tag range 4..16 */
-        { "AES-NIA5", IMB_AUTH_AES_NIA5, 16, 4, 16, 1, 16, HASH_AES_NIA5, 1, 0, 1, 1 },
-        { "ZUC-NIA6", IMB_AUTH_ZUC_NIA6, 16, 4, 16, 1, 16, HASH_ZUC, 1, 0, 1, 1 },
-        { "SNOW5G-NIA4", IMB_AUTH_SNOW5G_NIA4, 16, 4, 16, 1, 16, HASH_SNOW5G_NIA4, 1, 0, 1, 1 },
+        { "AES-NIA5", IMB_AUTH_AES_NIA5, 16, 4, 16, 1, 16, HASH_AES_NIA5, 1, 1, 1 },
+        { "ZUC-NIA6", IMB_AUTH_ZUC_NIA6, 16, 4, 16, 1, 16, HASH_ZUC, 1, 1, 1 },
+        { "SNOW5G-NIA4", IMB_AUTH_SNOW5G_NIA4, 16, 4, 16, 1, 16, HASH_SNOW5G_NIA4, 1, 1, 1 },
 };
 
 /**
@@ -820,10 +812,7 @@ test_hash_oob(IMB_MGR *mgr, const struct hash_test_vec *tv, struct oob_mem *mem,
         job->auth_tag_output = b.tag;
         job->auth_tag_output_len_in_bytes = tv->tag_len;
 
-        if (tv->use_bitlen)
-                job->msg_len_to_hash_in_bits = (uint64_t) tv->msg_len * 8;
-        else
-                job->msg_len_to_hash_in_bytes = tv->msg_len;
+        job->msg_len_to_hash_in_bytes = tv->msg_len;
 
         setup_hash_fields(job, tv->setup, b.iv);
 
@@ -884,11 +873,7 @@ test_hash_burst_oob(IMB_MGR *mgr, const struct hash_test_vec *tv, struct oob_mem
         jobs[0].hash_start_src_offset_in_bytes = 0;
         jobs[0].auth_tag_output = b.tag;
         jobs[0].auth_tag_output_len_in_bytes = tv->tag_len;
-
-        if (tv->use_bitlen)
-                jobs[0].msg_len_to_hash_in_bits = (uint64_t) tv->msg_len * 8;
-        else
-                jobs[0].msg_len_to_hash_in_bytes = tv->msg_len;
+        jobs[0].msg_len_to_hash_in_bytes = tv->msg_len;
 
         setup_hash_fields(&jobs[0], tv->setup, b.iv);
 
@@ -953,11 +938,7 @@ test_hash_generic_burst_oob(IMB_MGR *mgr, const struct hash_test_vec *tv, struct
         jobs[0]->hash_start_src_offset_in_bytes = 0;
         jobs[0]->auth_tag_output = b.tag;
         jobs[0]->auth_tag_output_len_in_bytes = tv->tag_len;
-
-        if (tv->use_bitlen)
-                jobs[0]->msg_len_to_hash_in_bits = (uint64_t) tv->msg_len * 8;
-        else
-                jobs[0]->msg_len_to_hash_in_bytes = tv->msg_len;
+        jobs[0]->msg_len_to_hash_in_bytes = tv->msg_len;
 
         setup_hash_fields(jobs[0], tv->setup, b.iv);
         imb_set_session(mgr, jobs[0]);

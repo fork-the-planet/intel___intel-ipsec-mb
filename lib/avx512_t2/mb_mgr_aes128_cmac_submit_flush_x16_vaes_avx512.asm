@@ -85,8 +85,6 @@ mksection .text
 %define tmp4             r13
 %define tmp2             r14
 
-%define rbits            r15
-
 ; STACK_SPACE needs to be an odd multiple of 8
 ; This routine and its callee clobbers all GPRs
 struc STACK
@@ -204,12 +202,8 @@ endstruc
         INSERT_KEYS tmp, lane, tmp2, zmm4, tmp3
 
         ;; Calculate len
-        ;; Convert bits to bytes (message length in bits for CMAC)
-        mov     len, [job + _msg_len_to_hash_in_bits]
-        mov     rbits, len
-        add     len, 7      ; inc len if there are remainder bits
-        shr     len, 3
-        and     rbits, 7
+        ;; message length is in bytes
+        mov     len, [job + _msg_len_to_hash_in_bytes]
 
         ;; Check number of blocks and for partial block
         mov     r, len  ; set remainder
@@ -240,10 +234,6 @@ endstruc
         vpbroadcastw    ymm1, WORD(tmp2)
         vmovdqu16       ymm0{k1}, ymm1
         vmovdqa64       [state + _aes_cmac_lens], ymm0
-
-        ;; check remainder bits
-        or      rbits, rbits
-        jnz     %%_not_complete_block_3gpp
 
         ;; check if complete block
         or      r, r
@@ -572,79 +562,6 @@ align_label
         mov     n, 1
         jmp     %%_not_complete_block
 
-align_label
-%%_not_complete_block_3gpp:
-        ;; bit pad last block
-        ;; xor with skey2
-        ;; copy to m_last
-
-        ;; load pointer to src
-        mov     tmp, [job + _src]
-        add     tmp, [job + _hash_start_src_offset_in_bytes]
-        lea     tmp3, [n - 1]
-        shl     tmp3, 4
-        add     tmp, tmp3
-
-        ;; check if partial block
-        or      r, r
-        jz      %%_load_full_block_3gpp
-
-        ;; load remainder bytes from last block
-        xor     DWORD(tmp5), DWORD(tmp5)
-        bts     DWORD(tmp5), DWORD(r)
-        dec     DWORD(tmp5)
-        kmovq   k1, tmp5
-        vmovdqu8 xmm4{k1}{z}, [tmp]
-
-        dec     r
-
-align_label
-%%_update_mlast_3gpp:
-        ;; set last byte padding mask
-        ;; shift into correct xmm idx
-
-        ;; save and restore rcx on windows
-%ifndef LINUX
-        mov     tmp, rcx
-%endif
-        mov     rcx, rbits
-        mov     tmp3, 0xff
-        shr     tmp3, cl
-        vmovq   xmm2, tmp3
-        XVPSLLB xmm2, r, xmm1, tmp2
-
-        ;; pad final byte
-        vpandn  xmm2, xmm4
-%ifndef LINUX
-        mov     rcx, tmp
-%endif
-        ;; set OR mask to pad final bit
-        mov     tmp2, tmp3
-        shr     tmp2, 1
-        xor     tmp2, tmp3 ; XOR to get OR mask
-        vmovq   xmm3, tmp2
-        ;; xmm1 contains shift table from previous shift
-        vpshufb xmm3, xmm1
-
-        ;; load skey2 address
-        mov     tmp3, [job + _skey2]
-        vmovdqu xmm1, [tmp3]
-
-        ;; set final padding bit
-        vpor    xmm2, xmm3
-
-        ;; XOR last partial block with skey2
-        ;; update mlast
-        vpxor   xmm2, xmm1
-        vmovdqa [m_last], xmm2
-
-        jmp     %%_step_5
-
-align_label
-%%_load_full_block_3gpp:
-        vmovdqu xmm4, [tmp]
-        mov     r, 0xf
-        jmp     %%_update_mlast_3gpp
 %endif
 %endmacro
 

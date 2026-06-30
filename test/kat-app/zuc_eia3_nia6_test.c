@@ -323,7 +323,7 @@ submit_burst_eia3_jobs(struct IMB_MGR *mb_mgr, uint8_t **const keys, uint8_t **c
                 }
 
                 job->hash_start_src_offset_in_bytes = 0;
-                job->msg_len_to_hash_in_bits = lens[i];
+                job->msg_len_to_hash_in_bytes = lens[i];
                 job->hash_alg = hash_alg;
                 job->auth_tag_output = tags[i];
                 job->auth_tag_output_len_in_bytes = tag_lens[i];
@@ -385,7 +385,7 @@ submit_eia3_jobs(struct IMB_MGR *mb_mgr, uint8_t **const keys, uint8_t **const i
                 }
 
                 job->hash_start_src_offset_in_bytes = 0;
-                job->msg_len_to_hash_in_bits = lens[i];
+                job->msg_len_to_hash_in_bytes = lens[i];
                 job->hash_alg = hash_alg;
                 job->auth_tag_output = tags[i];
                 job->auth_tag_output_len_in_bytes = tag_lens[i];
@@ -436,8 +436,7 @@ validate_zuc_EIA_n_block(struct IMB_MGR *mb_mgr, uint8_t **pSrcData, uint8_t **p
 {
         uint32_t i, j, num_vectors = 0;
         int retTmp, ret = 0;
-        uint32_t byteLength;
-        uint32_t bitLength[MAXBUFS];
+        uint32_t byteLength[MAXBUFS];
         size_t tag_lens[MAXBUFS];
         const struct mac_test *v = zuc_eia3_128_vectors;
 
@@ -457,21 +456,20 @@ validate_zuc_EIA_n_block(struct IMB_MGR *mb_mgr, uint8_t **pSrcData, uint8_t **p
 
                         zuc_eia3_128_set_params(&v[i], &p);
                         zuc_eia3_iv_gen(*p.count, *p.bearer, *p.direction, pIV[j]);
-                        bitLength[j] = (uint32_t) v[i].msgSize;
-                        byteLength = (bitLength[j] + 7) / 8;
-                        memcpy(pSrcData[j], v[i].msg, byteLength);
+                        byteLength[j] = (uint32_t) (v[i].msgSize / 8);
+                        memcpy(pSrcData[j], v[i].msg, byteLength[j]);
                         tag_lens[j] = v[i].tagSize / 8;
                 }
                 if (type == TEST_SINGLE_JOB_API)
-                        submit_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, bitLength,
-                                         numBuffs, tag_lens, IMB_AUTH_ZUC_EIA3_BITLEN);
+                        submit_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, byteLength,
+                                         numBuffs, tag_lens, IMB_AUTH_ZUC_EIA3);
                 else if (type == TEST_BURST_JOB_API)
-                        submit_burst_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, bitLength,
-                                               numBuffs, tag_lens, IMB_AUTH_ZUC_EIA3_BITLEN);
+                        submit_burst_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, byteLength,
+                                               numBuffs, tag_lens, IMB_AUTH_ZUC_EIA3);
                 else /* TEST_BURST_JOB_API */
                         IMB_ZUC_EIA3_N_BUFFER(mb_mgr, (const void *const *) pKeys,
                                               (const void *const *) pIV,
-                                              (const void *const *) pSrcData, bitLength,
+                                              (const void *const *) pSrcData, byteLength,
                                               (uint32_t **) pDstData, numBuffs);
 
                 for (j = 0; j < numBuffs; j++) {
@@ -507,22 +505,21 @@ validate_zuc_EIA_n_block(struct IMB_MGR *mb_mgr, uint8_t **pSrcData, uint8_t **p
 
                 zuc_eia3_128_set_params(&v[vec_idx], &p);
                 zuc_eia3_iv_gen(*p.count, *p.bearer, *p.direction, pIV[i]);
-                bitLength[i] = (uint32_t) v[vec_idx].msgSize;
-                byteLength = (bitLength[i] + 7) / 8;
-                memcpy(pSrcData[i], v[vec_idx].msg, byteLength);
+                byteLength[i] = (uint32_t) (v[vec_idx].msgSize / 8);
+                memcpy(pSrcData[i], v[vec_idx].msg, byteLength[i]);
                 tag_lens[i] = v[vec_idx].tagSize / 8;
         }
 
         if (type == TEST_SINGLE_JOB_API)
-                submit_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, bitLength, numBuffs,
-                                 tag_lens, IMB_AUTH_ZUC_EIA3_BITLEN);
+                submit_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, byteLength, numBuffs,
+                                 tag_lens, IMB_AUTH_ZUC_EIA3);
         else if (type == TEST_BURST_JOB_API)
-                submit_burst_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, bitLength, numBuffs,
-                                       tag_lens, IMB_AUTH_ZUC_EIA3_BITLEN);
+                submit_burst_eia3_jobs(mb_mgr, pKeys, pIV, pSrcData, pDstData, byteLength, numBuffs,
+                                       tag_lens, IMB_AUTH_ZUC_EIA3);
         else /* TEST_BURST_JOB_API */
                 IMB_ZUC_EIA3_N_BUFFER(mb_mgr, (const void *const *) pKeys,
                                       (const void *const *) pIV, (const void *const *) pSrcData,
-                                      bitLength, (uint32_t **) pDstData, numBuffs);
+                                      byteLength, (uint32_t **) pDstData, numBuffs);
 
         for (i = 0; i < numBuffs; i++) {
                 const int vec_idx = i % num_vectors;

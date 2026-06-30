@@ -121,7 +121,7 @@ zuc_eea3_n_buffer(IMB_MGR *mgr, const void *const pKey[], const void *const pIv[
 
 void
 zuc_eia3_n_buffer(IMB_MGR *mgr, const void *const pKey[], const void *const pIv[],
-                  const void *const pBufferIn[], const uint32_t lengthInBits[], uint32_t *pMacI[],
+                  const void *const pBufferIn[], const uint32_t lengthInBytes[], uint32_t *pMacI[],
                   const uint32_t numBuffers)
 {
         IMB_JOB *job;
@@ -149,7 +149,7 @@ zuc_eia3_n_buffer(IMB_MGR *mgr, const void *const pKey[], const void *const pIv[
                 imb_set_errno(NULL, IMB_ERR_NULL_AUTH);
                 return;
         }
-        if (lengthInBits == NULL) {
+        if (lengthInBytes == NULL) {
                 imb_set_errno(NULL, IMB_ERR_AUTH_LEN);
                 return;
         }
@@ -170,7 +170,7 @@ zuc_eia3_n_buffer(IMB_MGR *mgr, const void *const pKey[], const void *const pIv[
                         imb_set_errno(NULL, IMB_ERR_NULL_AUTH);
                         return;
                 }
-                if (lengthInBits[i] < ZUC_MIN_BITLEN || lengthInBits[i] > ZUC_MAX_BITLEN) {
+                if (lengthInBytes[i] == 0 || lengthInBytes[i] > ZUC_MAX_BYTELEN) {
                         imb_set_errno(NULL, IMB_ERR_AUTH_LEN);
                         return;
                 }
@@ -189,12 +189,12 @@ zuc_eia3_n_buffer(IMB_MGR *mgr, const void *const pKey[], const void *const pIv[
                 job->chain_order = IMB_ORDER_CIPHER_HASH;
                 job->cipher_mode = IMB_CIPHER_NULL;
                 job->key_len_in_bytes = IMB_ZUC_KEY_LEN_IN_BYTES;
-                job->hash_alg = IMB_AUTH_ZUC_EIA3_BITLEN;
+                job->hash_alg = IMB_AUTH_ZUC_EIA3;
                 job->src = (const uint8_t *) pBufferIn[i];
                 job->u.ZUC_EIA3._key = (const uint8_t *) pKey[i];
                 job->u.ZUC_EIA3._iv = (const uint8_t *) pIv[i];
                 job->hash_start_src_offset_in_bytes = 0;
-                job->msg_len_to_hash_in_bits = lengthInBits[i];
+                job->msg_len_to_hash_in_bytes = lengthInBytes[i];
                 job->auth_tag_output = (uint8_t *) pMacI[i];
                 job->auth_tag_output_len_in_bytes = IMB_ZUC_DIGEST_LEN_IN_BYTES;
 

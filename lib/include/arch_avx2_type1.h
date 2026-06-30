@@ -285,9 +285,6 @@ IMB_JOB *
 submit_job_aes_cntr_avx(IMB_JOB *job);
 
 IMB_JOB *
-submit_job_aes_cntr_bit_avx(IMB_JOB *job);
-
-IMB_JOB *
 submit_job_chacha20_enc_dec_avx(IMB_JOB *job);
 
 IMB_JOB *

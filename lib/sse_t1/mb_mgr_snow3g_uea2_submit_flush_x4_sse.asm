@@ -191,13 +191,11 @@ mksection .text
         mov             dword [state + _snow3g_lens + 32 + 4*%%LANE], 32
         mov             dword [state + _snow3g_lens + 4*%%LANE], 4
 
-        mov             %%TGP0, [job + _msg_len_to_cipher_in_bits]
-        shr             %%TGP0, 3
+        mov             %%TGP0, [job + _msg_len_to_cipher_in_bytes]
 
         mov             dword [state + _snow3g_args_byte_length + %%LANE*4], DWORD(%%TGP0)
 
-        mov             %%TGP0, [job + _cipher_start_offset_in_bits]
-        shr             %%TGP0, 3      ;; convert from bits to bytes (src & dst)
+        mov             %%TGP0, [job + _cipher_start_src_offset_in_bytes]
         mov             %%TGP1, [job + _dst]
         add             %%TGP0, [job + _src]
 

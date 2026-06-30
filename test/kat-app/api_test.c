@@ -211,11 +211,10 @@ fill_in_job(struct IMB_JOB *job, const IMB_CIPHER_MODE cipher_mode,
                 32, /* IMB_AUTH_SHA_256 */
                 48, /* IMB_AUTH_SHA_384 */
                 64, /* IMB_AUTH_SHA_512 */
-                4,  /* IMB_AUTH_AES_CMAC 3GPP */
                 8,  /* IMB_AUTH_PON_CRC_BIP */
-                4,  /* IMB_AUTH_ZUC_EIA3_BITLEN */
+                4,  /* IMB_AUTH_ZUC_EIA3 */
                 4,  /* IMB_AUTH_DOCSIS_CRC32 */
-                4,  /* IMB_AUTH_SNOW3G_UIA2_BITLEN */
+                4,  /* IMB_AUTH_SNOW3G_UIA2 */
                 4,  /* IMB_AUTH_KASUMI_UIA1 */
                 16, /* IMB_AUTH_AES_GMAC_128 */
                 16, /* IMB_AUTH_AES_GMAC_192 */
@@ -381,11 +380,11 @@ fill_in_job(struct IMB_JOB *job, const IMB_CIPHER_MODE cipher_mode,
                 job->key_len_in_bytes = UINT64_C(16);
                 job->iv_len_in_bytes = 16;
                 break;
-        case IMB_CIPHER_SNOW3G_UEA2_BITLEN:
+        case IMB_CIPHER_SNOW3G_UEA2:
                 job->key_len_in_bytes = UINT64_C(16);
                 job->iv_len_in_bytes = 16;
                 break;
-        case IMB_CIPHER_KASUMI_UEA1_BITLEN:
+        case IMB_CIPHER_KASUMI_UEA1:
                 job->key_len_in_bytes = UINT64_C(16);
                 job->iv_len_in_bytes = 8;
                 break;
@@ -490,7 +489,6 @@ fill_in_job(struct IMB_JOB *job, const IMB_CIPHER_MODE cipher_mode,
                 job->iv_len_in_bytes = UINT64_C(12);
                 break;
         case IMB_AUTH_AES_CMAC:
-        case IMB_AUTH_AES_CMAC_BITLEN:
         case IMB_AUTH_AES_CMAC_256:
                 job->u.CMAC._key_expanded = dust_bin;
                 job->u.CMAC._skey1 = dust_bin;
@@ -521,7 +519,7 @@ fill_in_job(struct IMB_JOB *job, const IMB_CIPHER_MODE cipher_mode,
                 job->u.NIA._iv = dust_bin;
                 job->auth_tag_output_len_in_bytes = 4;
                 break;
-        case IMB_AUTH_ZUC_EIA3_BITLEN:
+        case IMB_AUTH_ZUC_EIA3:
                 job->u.ZUC_EIA3._key = dust_bin;
                 job->u.ZUC_EIA3._iv = dust_bin;
                 job->auth_tag_output_len_in_bytes = 4;
@@ -530,15 +528,15 @@ fill_in_job(struct IMB_JOB *job, const IMB_CIPHER_MODE cipher_mode,
                 job->auth_tag_output_len_in_bytes = 4;
                 job->hash_start_src_offset_in_bytes = 32;
                 job->cipher_start_src_offset_in_bytes = job->hash_start_src_offset_in_bytes + 12;
-                job->msg_len_to_hash_in_bits = 64;
+                job->msg_len_to_hash_in_bytes = 64;
                 job->msg_len_to_cipher_in_bytes = job->msg_len_to_hash_in_bytes - 12 + 4;
                 /* set required cipher mode fields */
                 job->cipher_mode = IMB_CIPHER_DOCSIS_SEC_BPI;
                 job->key_len_in_bytes = UINT64_C(16);
                 job->iv_len_in_bytes = UINT64_C(16);
                 break;
-        case IMB_AUTH_SNOW3G_UIA2_BITLEN:
-                job->msg_len_to_hash_in_bits = msg_len_to_hash * 8;
+        case IMB_AUTH_SNOW3G_UIA2:
+                job->msg_len_to_hash_in_bytes = msg_len_to_hash;
                 job->u.SNOW3G_UIA2._key = dust_bin;
                 job->u.SNOW3G_UIA2._iv = dust_bin;
                 job->auth_tag_output_len_in_bytes = 4;
@@ -1360,13 +1358,13 @@ test_job_invalid_mac_args(struct IMB_MGR *mb_mgr)
                                             &gcm_ctx);
 
                                 switch (hash) {
-                                case IMB_AUTH_ZUC_EIA3_BITLEN:
+                                case IMB_AUTH_ZUC_EIA3:
                                         /* (2^32) - 32 is max */
                                         template_job.msg_len_to_hash_in_bytes = ((1ULL << 32) - 31);
                                         break;
-                                case IMB_AUTH_SNOW3G_UIA2_BITLEN:
-                                        /* (2^32) is max */
-                                        template_job.msg_len_to_hash_in_bits = ((1ULL << 32) + 1);
+                                case IMB_AUTH_SNOW3G_UIA2:
+                                        /* max is floor((2^32 - 1) / 8); set to max + 1 */
+                                        template_job.msg_len_to_hash_in_bytes = ((1ULL << 29));
                                         break;
                                 case IMB_AUTH_KASUMI_UIA1:
                                         /* 20000 bits (2500 bytes) is max */
@@ -1379,10 +1377,10 @@ test_job_invalid_mac_args(struct IMB_MGR *mb_mgr)
                                         template_job.msg_len_to_hash_in_bytes =
                                                 ((1ULL << 38) - 64) + 1;
                                         break;
-                                case IMB_AUTH_AES_CMAC_BITLEN:
-                                        /* MB_MAX_LEN16 (((1 << 16) - 2) * 8) is max */
-                                        template_job.msg_len_to_hash_in_bits =
-                                                ((((1ULL << 16) - 1) * 8));
+                                case IMB_AUTH_AES_CMAC:
+                                        /* MB_MAX_LEN16 ((1 << 16) - 2) bytes is max; set to max + 1
+                                         */
+                                        template_job.msg_len_to_hash_in_bytes = ((1ULL << 16) - 1);
                                         break;
                                 case IMB_AUTH_SNOW5G_NIA4:
                                 case IMB_AUTH_ZUC_NIA6:
@@ -1921,8 +1919,8 @@ test_job_invalid_cipher_args(struct IMB_MGR *mb_mgr)
                         case IMB_CIPHER_PON_AES_CNTR:
                         case IMB_CIPHER_ZUC_NEA6:
                         case IMB_CIPHER_ZUC_EEA3:
-                        case IMB_CIPHER_SNOW3G_UEA2_BITLEN:
-                        case IMB_CIPHER_KASUMI_UEA1_BITLEN:
+                        case IMB_CIPHER_SNOW3G_UEA2:
+                        case IMB_CIPHER_KASUMI_UEA1:
                         case IMB_CIPHER_CHACHA20:
                                 template_job.enc_keys = NULL;
                                 if (!is_submit_invalid(mb_mgr, &template_job,
@@ -2066,13 +2064,13 @@ test_job_invalid_cipher_args(struct IMB_MGR *mb_mgr)
                                         /* max is 8188 bytes */
                                         job->msg_len_to_cipher_in_bytes = 8190;
                                         break;
-                                case IMB_CIPHER_SNOW3G_UEA2_BITLEN:
-                                        /* max is 2^32 bits */
-                                        job->msg_len_to_cipher_in_bits = ((1ULL << 32));
+                                case IMB_CIPHER_SNOW3G_UEA2:
+                                        /* byte-aligned max is floor((2^32 - 1) / 8) */
+                                        job->msg_len_to_cipher_in_bytes = (1ULL << 29);
                                         break;
-                                case IMB_CIPHER_KASUMI_UEA1_BITLEN:
-                                        /* max is 20000 bits */
-                                        job->msg_len_to_cipher_in_bits = 20008;
+                                case IMB_CIPHER_KASUMI_UEA1:
+                                        /* max is 20000 bits (2500 bytes) */
+                                        job->msg_len_to_cipher_in_bytes = (20008 / 8);
                                         break;
                                 case IMB_CIPHER_CHACHA20:
                                         /* Chacha20 limit (2^32 - 1) x 64 */
@@ -2110,8 +2108,8 @@ test_job_invalid_cipher_args(struct IMB_MGR *mb_mgr)
                                 { IMB_CIPHER_DOCSIS_SEC_BPI, 17 },
                                 { IMB_CIPHER_PON_AES_CNTR, 15 },
                                 { IMB_CIPHER_PON_AES_CNTR, 17 },
-                                { IMB_CIPHER_SNOW3G_UEA2_BITLEN, 15 },
-                                { IMB_CIPHER_SNOW3G_UEA2_BITLEN, 17 },
+                                { IMB_CIPHER_SNOW3G_UEA2, 15 },
+                                { IMB_CIPHER_SNOW3G_UEA2, 17 },
                                 { IMB_CIPHER_CFB, 15 },
                                 { IMB_CIPHER_CFB, 17 },
                                 { IMB_CIPHER_ZUC_EEA3, 15 },
@@ -2134,8 +2132,8 @@ test_job_invalid_cipher_args(struct IMB_MGR *mb_mgr)
                                 { IMB_CIPHER_DES3, 7 },
                                 { IMB_CIPHER_DES3, 9 },
                                 /* KASUMI IV must be 8 bytes */
-                                { IMB_CIPHER_KASUMI_UEA1_BITLEN, 7 },
-                                { IMB_CIPHER_KASUMI_UEA1_BITLEN, 9 },
+                                { IMB_CIPHER_KASUMI_UEA1, 7 },
+                                { IMB_CIPHER_KASUMI_UEA1, 9 },
                                 /* CHACHA20 IVs must be 12 bytes */
                                 { IMB_CIPHER_CHACHA20, 15 },
                                 { IMB_CIPHER_CHACHA20, 17 },
@@ -2213,8 +2211,8 @@ test_job_invalid_cipher_args(struct IMB_MGR *mb_mgr)
                                                 continue;
                                         break;
                                 case IMB_CIPHER_PON_AES_CNTR:
-                                case IMB_CIPHER_SNOW3G_UEA2_BITLEN:
-                                case IMB_CIPHER_KASUMI_UEA1_BITLEN:
+                                case IMB_CIPHER_SNOW3G_UEA2:
+                                case IMB_CIPHER_KASUMI_UEA1:
                                 case IMB_CIPHER_SM4_ECB:
                                 case IMB_CIPHER_SM4_CBC:
                                 case IMB_CIPHER_SM4_CNTR:

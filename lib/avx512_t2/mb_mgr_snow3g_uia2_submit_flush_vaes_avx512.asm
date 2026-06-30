@@ -116,7 +116,8 @@ mksection .text
         mov     [state + _snow3g_args_IV + lane*8], tmp
 
         ;; insert len into proper lane
-        mov     len, [job + _msg_len_to_hash_in_bits]
+        mov     len, [job + _msg_len_to_hash_in_bytes]
+        shl     len, 3
 
         ;; Update lane len
         vpbroadcastd    zmm1, DWORD(len)

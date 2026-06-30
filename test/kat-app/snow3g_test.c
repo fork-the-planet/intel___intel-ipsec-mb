@@ -78,10 +78,6 @@ validate_snow3g_f8_1_block(struct IMB_MGR *mb_mgr, unsigned int job_api,
                            struct test_suite_context *uea2_ctx,
                            struct test_suite_context *uia2_ctx);
 static void
-validate_snow3g_f8_1_bitblock(struct IMB_MGR *mb_mgr, unsigned int job_api,
-                              struct test_suite_context *uea2_ctx,
-                              struct test_suite_context *uia2_ctx);
-static void
 validate_snow3g_f8_2_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                             struct test_suite_context *uea2_ctx,
                             struct test_suite_context *uia2_ctx);
@@ -122,7 +118,6 @@ struct {
                      struct test_suite_context *uia2_ctx);
         const char *func_name;
 } snow3g_func_tab[] = {
-        { validate_snow3g_f8_1_bitblock, "validate_snow3g_f8_1_bitblock" },
         { validate_snow3g_f8_1_block, "validate_snow3g_f8_1_block" },
         { validate_snow3g_f8_2_blocks, "validate_snow3g_f8_2_blocks" },
         { validate_snow3g_f8_4_blocks, "validate_snow3g_f8_4_blocks" },
@@ -187,8 +182,8 @@ snow3g_hexdump(const char *message, const uint8_t *ptr, int len)
 
 static inline int
 submit_uea2_jobs(struct IMB_MGR *mb_mgr, snow3g_key_schedule_t *const *keys, uint8_t **const ivs,
-                 uint8_t **const src, uint8_t **const dst, const uint32_t *bitlens,
-                 const uint32_t *bit_offsets, const int dir, const unsigned int num_jobs)
+                 uint8_t **const src, uint8_t **const dst, const uint32_t *bytelens,
+                 const uint32_t *byte_offsets, const int dir, const unsigned int num_jobs)
 {
         IMB_JOB *job;
         unsigned int i;
@@ -198,7 +193,7 @@ submit_uea2_jobs(struct IMB_MGR *mb_mgr, snow3g_key_schedule_t *const *keys, uin
                 job = IMB_GET_NEXT_JOB(mb_mgr);
                 job->cipher_direction = dir;
                 job->chain_order = IMB_ORDER_CIPHER_HASH;
-                job->cipher_mode = IMB_CIPHER_SNOW3G_UEA2_BITLEN;
+                job->cipher_mode = IMB_CIPHER_SNOW3G_UEA2;
                 job->src = src[i];
                 job->dst = dst[i];
                 job->iv = ivs[i];
@@ -206,8 +201,8 @@ submit_uea2_jobs(struct IMB_MGR *mb_mgr, snow3g_key_schedule_t *const *keys, uin
                 job->enc_keys = keys[i];
                 job->key_len_in_bytes = 16;
 
-                job->cipher_start_src_offset_in_bits = bit_offsets[i];
-                job->msg_len_to_cipher_in_bits = bitlens[i];
+                job->cipher_start_src_offset_in_bytes = byte_offsets[i];
+                job->msg_len_to_cipher_in_bytes = bytelens[i];
                 job->hash_alg = IMB_AUTH_NULL;
 
                 job = IMB_SUBMIT_JOB(mb_mgr);
@@ -238,7 +233,7 @@ submit_uea2_jobs(struct IMB_MGR *mb_mgr, snow3g_key_schedule_t *const *keys, uin
 
 static inline int
 submit_uia2_job(struct IMB_MGR *mb_mgr, uint8_t *key, uint8_t *iv, uint8_t *src, uint8_t *tag,
-                const uint32_t bitlen, const uint8_t *exp_out, const int num_jobs)
+                const uint32_t byte_len, const uint8_t *exp_out, const int num_jobs)
 {
         int i, err, jobs_rx = 0;
         IMB_JOB *job;
@@ -256,8 +251,8 @@ submit_uia2_job(struct IMB_MGR *mb_mgr, uint8_t *key, uint8_t *iv, uint8_t *src,
                 job->u.SNOW3G_UIA2._key = key;
 
                 job->hash_start_src_offset_in_bytes = 0;
-                job->msg_len_to_hash_in_bits = bitlen;
-                job->hash_alg = IMB_AUTH_SNOW3G_UIA2_BITLEN;
+                job->msg_len_to_hash_in_bytes = byte_len;
+                job->hash_alg = IMB_AUTH_SNOW3G_UIA2;
                 job->auth_tag_output = tag;
                 job->auth_tag_output_len_in_bytes = 4;
 
@@ -271,7 +266,7 @@ submit_uia2_job(struct IMB_MGR *mb_mgr, uint8_t *key, uint8_t *iv, uint8_t *src,
                         }
                         /*Compare the digest with the expected in the vectors*/
                         if (memcmp(job->auth_tag_output, exp_out, IMB_SNOW3G_DIGEST_LEN) != 0) {
-                                printf("IMB_AUTH_SNOW3G_UIA2_BITLEN "
+                                printf("IMB_AUTH_SNOW3G_UIA2 "
                                        "job num:%d\n",
                                        i);
                                 snow3g_hexdump("Actual:", job->auth_tag_output,
@@ -300,7 +295,7 @@ submit_uia2_job(struct IMB_MGR *mb_mgr, uint8_t *key, uint8_t *iv, uint8_t *src,
                 }
 
                 if (memcmp(job->auth_tag_output, exp_out, IMB_SNOW3G_DIGEST_LEN) != 0) {
-                        printf("IMB_AUTH_SNOW3G_UIA2_BITLEN job num:%d\n", i);
+                        printf("IMB_AUTH_SNOW3G_UIA2 job num:%d\n", i);
                         snow3g_hexdump("Actual:", job->auth_tag_output, IMB_SNOW3G_DIGEST_LEN);
                         snow3g_hexdump("Expected:", exp_out, IMB_SNOW3G_DIGEST_LEN);
                         goto end;
@@ -394,11 +389,11 @@ validate_snow3g_f8_1_block(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Validate encrypt*/
                 if (job_api) {
-                        uint32_t bit_len = length << 3;
-                        uint32_t bit_offset = 0;
+                        const uint32_t byte_len = (uint32_t) length;
+                        const uint32_t byte_offset = 0;
 
-                        submit_uea2_jobs(mb_mgr, &pKeySched, &pIV, &pSrcBuff, &pSrcBuff, &bit_len,
-                                         &bit_offset, IMB_DIR_ENCRYPT, 1);
+                        submit_uea2_jobs(mb_mgr, &pKeySched, &pIV, &pSrcBuff, &pSrcBuff, &byte_len,
+                                         &byte_offset, IMB_DIR_ENCRYPT, 1);
                 } else
                         IMB_SNOW3G_F8_1_BUFFER(mb_mgr, pKeySched, pIV, srcBuff, srcBuff, length);
 
@@ -415,11 +410,11 @@ validate_snow3g_f8_1_block(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Validate Decrypt*/
                 if (job_api) {
-                        unsigned bit_len = length << 3;
-                        uint32_t bit_offset = 0;
+                        const uint32_t byte_len = (uint32_t) length;
+                        const uint32_t byte_offset = 0;
 
-                        submit_uea2_jobs(mb_mgr, &pKeySched, &pIV, &pSrcBuff, &pSrcBuff, &bit_len,
-                                         &bit_offset, IMB_DIR_DECRYPT, 1);
+                        submit_uea2_jobs(mb_mgr, &pKeySched, &pIV, &pSrcBuff, &pSrcBuff, &byte_len,
+                                         &byte_offset, IMB_DIR_DECRYPT, 1);
                 } else
                         IMB_SNOW3G_F8_1_BUFFER(mb_mgr, pKeySched, pIV, srcBuff, srcBuff, length);
 
@@ -435,255 +430,6 @@ validate_snow3g_f8_1_block(struct IMB_MGR *mb_mgr, uint32_t job_api,
         status = 0;
 
 snow3g_f8_1_buffer_exit:
-        free(pIV);
-        free(pKey);
-        free(pKeySched);
-
-        if (status < 0)
-                test_suite_update(uea2_ctx, 0, 1);
-        else
-                test_suite_update(uea2_ctx, 1, 0);
-}
-
-/* Shift right a buffer by "offset" bits, "offset" < 8 */
-static void
-buffer_shift_right(uint8_t *buffer, const uint32_t length, const uint8_t offset)
-{
-        uint8_t prev_byte;
-        const uint32_t length_in_bytes = (length * 8 + offset + 7) / 8;
-        const uint8_t lower_byte_mask = (1 << offset) - 1;
-        uint32_t i;
-
-        prev_byte = buffer[0];
-        buffer[0] >>= offset;
-
-        for (i = 1; i < length_in_bytes; i++) {
-                const uint8_t curr_byte = buffer[i];
-
-                buffer[i] = ((prev_byte & lower_byte_mask) << (8 - offset)) | (curr_byte >> offset);
-                prev_byte = curr_byte;
-        }
-}
-
-static void
-copy_test_bufs(uint8_t *plainBuff, uint8_t *wrkBuff, uint8_t *ciphBuff, const uint8_t *src_test,
-               const uint8_t *dst_test, const uint32_t byte_len)
-{
-        /*
-         * Reset all buffers
-         * - plain and cipher buffers to 0
-         * - working buffer to -1 (for padding check)
-         * and copy test vectors
-         */
-        memset(wrkBuff, -1, (byte_len + IMB_SNOW3G_PAD_LEN * 2));
-        memset(plainBuff, 0, (byte_len + IMB_SNOW3G_PAD_LEN * 2));
-        memset(ciphBuff, 0, (byte_len + IMB_SNOW3G_PAD_LEN * 2));
-        memcpy(plainBuff + IMB_SNOW3G_PAD_LEN, src_test, byte_len);
-        memcpy(ciphBuff + IMB_SNOW3G_PAD_LEN, dst_test, byte_len);
-}
-
-static void
-validate_snow3g_f8_1_bitblock(struct IMB_MGR *mb_mgr, uint32_t job_api,
-                              struct test_suite_context *uea2_ctx,
-                              struct test_suite_context *uia2_ctx)
-{
-        int i, numVectors = 0;
-        size_t size = 0;
-        const struct cipher_test *vect_bit = snow3g_f8_vectors;
-
-        snow3g_key_schedule_t *pKeySched = NULL;
-        uint8_t *pKey = NULL;
-        const int keyLen = IMB_KEY_256_BYTES;
-        uint8_t srcBuff[IMB_SNOW3G_MAX_DATA_LEN];
-        uint8_t midBuff[IMB_SNOW3G_MAX_DATA_LEN];
-        uint8_t dstBuff[IMB_SNOW3G_MAX_DATA_LEN];
-        /* Adding extra byte for offset tests (shifting up to 7 bits) */
-        uint8_t padding[IMB_SNOW3G_PAD_LEN + 1];
-        uint8_t *pIV = NULL;
-        int status = -1;
-
-        (void) uia2_ctx;
-#ifdef DEBUG
-        printf("Testing IMB_SNOW3G_F8_1_BUFFER_BIT: (%s):\n", job_api ? "Job API" : "Direct API");
-#endif
-
-        memset(padding, -1, sizeof(padding));
-        memset(srcBuff, 0, sizeof(srcBuff));
-        memset(midBuff, 0, sizeof(midBuff));
-        memset(dstBuff, 0, sizeof(dstBuff));
-
-        /* calculate number of vectors */
-        for (i = 0; vect_bit[i].msg != NULL; i++)
-                numVectors++;
-
-        if (!numVectors) {
-                printf("No Snow3G test vectors found !\n");
-                goto snow3g_f8_1_buffer_bit_exit;
-        }
-
-        pIV = malloc(IMB_SNOW3G_IV_LEN_IN_BYTES);
-        if (!pIV) {
-                printf("malloc(pIV):failed !\n");
-                goto snow3g_f8_1_buffer_bit_exit;
-        }
-
-        pKey = malloc(keyLen);
-        if (!pKey) {
-                printf("malloc(pKey):failed !\n");
-                goto snow3g_f8_1_buffer_bit_exit;
-        }
-        size = IMB_SNOW3G_KEY_SCHED_SIZE(mb_mgr);
-        if (!size)
-                goto snow3g_f8_1_buffer_bit_exit;
-
-        pKeySched = malloc(size);
-        if (!pKeySched) {
-                printf("malloc(IMB_SNOW3G_KEY_SCHED_SIZE(mb_mgr)): failed!\n");
-                goto snow3g_f8_1_buffer_bit_exit;
-        }
-
-        /*Copy the data for for Snow3g 1 Packet version*/
-        for (i = 0; i < numVectors; i++) {
-                uint8_t *midBufBefPad = midBuff;
-                uint8_t *midBufAftPad = midBuff + IMB_SNOW3G_PAD_LEN;
-                uint8_t *srcBufBefPad = srcBuff;
-                uint8_t *srcBufAftPad = srcBuff + IMB_SNOW3G_PAD_LEN;
-                uint8_t *dstBufBefPad = dstBuff;
-                uint8_t *dstBufAftPad = dstBuff + IMB_SNOW3G_PAD_LEN;
-                uint32_t head_offset;
-
-                for (head_offset = 0; head_offset < 8; head_offset++) {
-                        uint32_t byte_len, bit_len, tail_offset, final_byte_offset;
-
-                        memcpy(pKey, vect_bit[i].key, vect_bit[i].keySize / 8);
-                        memcpy(pIV, vect_bit[i].iv, vect_bit[i].ivSize / 8);
-
-                        if (head_offset != 0) {
-                                bit_len = (uint32_t) vect_bit[i].msgSize;
-                                byte_len = (bit_len + 7) / 8;
-                                tail_offset = (head_offset + bit_len) % 8;
-                                final_byte_offset = (bit_len + head_offset) / 8;
-
-                                copy_test_bufs(srcBufBefPad, midBufBefPad, dstBufBefPad,
-                                               (const uint8_t *) vect_bit[i].msg,
-                                               (const uint8_t *) vect_bit[i].ct, byte_len);
-
-                                /* shift buffers by offset for this round */
-                                buffer_shift_right(srcBufBefPad,
-                                                   (byte_len + IMB_SNOW3G_PAD_LEN * 2) * 8,
-                                                   head_offset);
-                                buffer_shift_right(dstBufBefPad,
-                                                   (byte_len + IMB_SNOW3G_PAD_LEN * 2) * 8,
-                                                   head_offset);
-                        } else {
-                                byte_len = (uint32_t) vect_bit[i].msgSize / 8;
-                                final_byte_offset = byte_len;
-                                bit_len = byte_len * 8;
-                                tail_offset = bit_len % 8;
-                                memcpy(srcBuff, vect_bit[i].msg, byte_len);
-                                memcpy(dstBuff, vect_bit[i].ct, byte_len);
-                        }
-
-                        /*setup the keysched to be used*/
-                        if (IMB_SNOW3G_INIT_KEY_SCHED(mb_mgr, pKey, pKeySched) != 0) {
-                                printf("SNOW3G init key schedule failed\n");
-                                goto snow3g_f8_1_buffer_bit_exit;
-                        }
-
-                        /*Validate Encrypt*/
-                        if (job_api)
-                                submit_uea2_jobs(mb_mgr, &pKeySched, &pIV, &srcBufAftPad,
-                                                 &midBufAftPad, &bit_len, &head_offset,
-                                                 IMB_DIR_ENCRYPT, 1);
-                        else
-                                IMB_SNOW3G_F8_1_BUFFER_BIT(mb_mgr, pKeySched, pIV, srcBufAftPad,
-                                                           midBufAftPad, bit_len, head_offset);
-
-                        /*
-                         * Check against the ciphertext in the vector against
-                         * the encrypted plaintext
-                         */
-                        if (membitcmp(midBufAftPad, dstBufAftPad, bit_len, head_offset) != 0) {
-                                const uint32_t byte_len_with_offset =
-                                        (bit_len + head_offset + 7) / 8;
-
-                                printf("Test1: snow3g_f8_1_bitbuffer(Enc) "
-                                       "buffer:%zu size:%u bit offset:%u\n",
-                                       vect_bit[i].tcId, bit_len, head_offset);
-                                snow3g_hexdump("Actual:", midBufAftPad, byte_len_with_offset);
-                                snow3g_hexdump("Expected:", dstBufAftPad, byte_len_with_offset);
-                                goto snow3g_f8_1_buffer_bit_exit;
-                        }
-
-                        /*
-                         * Check that data not to be ciphered wasn't
-                         * overwritten
-                         */
-                        if (membitcmp(midBufBefPad, padding, (IMB_SNOW3G_PAD_LEN * 8) + head_offset,
-                                      0)) {
-                                printf("overwrite head\n");
-                                snow3g_hexdump("Head", midBufBefPad, IMB_SNOW3G_PAD_LEN + 1);
-                                goto snow3g_f8_1_buffer_bit_exit;
-                        }
-
-                        if (membitcmp(midBufAftPad + final_byte_offset, padding,
-                                      (IMB_SNOW3G_PAD_LEN * 8) - tail_offset, tail_offset)) {
-                                printf("overwrite tail\n");
-                                snow3g_hexdump("Tail", midBufAftPad + final_byte_offset,
-                                               IMB_SNOW3G_PAD_LEN + 1);
-                                goto snow3g_f8_1_buffer_bit_exit;
-                        }
-
-                        /* reset working buffer */
-                        memset(midBufBefPad, -1, (byte_len + IMB_SNOW3G_PAD_LEN * 2));
-
-                        /*Validate Decrypt*/
-                        if (job_api)
-                                submit_uea2_jobs(mb_mgr, &pKeySched, &pIV, &dstBufAftPad,
-                                                 &midBufAftPad, &bit_len, &head_offset,
-                                                 IMB_DIR_DECRYPT, 1);
-                        else
-                                IMB_SNOW3G_F8_1_BUFFER_BIT(mb_mgr, pKeySched, pIV, dstBufAftPad,
-                                                           midBufAftPad, bit_len, head_offset);
-
-                        if (membitcmp(midBufAftPad, srcBufAftPad, bit_len, head_offset) != 0) {
-                                const uint32_t byte_len_with_offset =
-                                        (bit_len + head_offset + 7) / 8;
-
-                                printf("Test2: snow3g_f8_1_bitbuffer(Dec) "
-                                       "buffer:%d size:%u bit offset:%u\n",
-                                       i, bit_len, head_offset);
-                                snow3g_hexdump("Actual:", midBufAftPad, byte_len_with_offset);
-                                snow3g_hexdump("Expected:", srcBufAftPad, byte_len_with_offset);
-                                goto snow3g_f8_1_buffer_bit_exit;
-                        }
-
-                        /*
-                         * Check that data not to be ciphered was not
-                         * overwritten
-                         */
-                        if (membitcmp(midBufBefPad, padding, (IMB_SNOW3G_PAD_LEN * 8) + head_offset,
-                                      0)) {
-                                printf("overwrite head\n");
-                                snow3g_hexdump("Head", midBufBefPad, IMB_SNOW3G_PAD_LEN + 1);
-                                goto snow3g_f8_1_buffer_bit_exit;
-                        }
-
-                        if (membitcmp(midBufAftPad + final_byte_offset, padding,
-                                      (IMB_SNOW3G_PAD_LEN * 8) - tail_offset, tail_offset)) {
-                                printf("overwrite tail\n");
-                                snow3g_hexdump("Tail", midBufAftPad + final_byte_offset,
-                                               IMB_SNOW3G_PAD_LEN + 1);
-                                goto snow3g_f8_1_buffer_bit_exit;
-                        }
-                } /* head_offset = 0..7 */
-
-        } /* for numVectors */
-
-        /* no errors detected */
-        status = 0;
-
-snow3g_f8_1_buffer_bit_exit:
         free(pIV);
         free(pKey);
         free(pKeySched);
@@ -738,14 +484,14 @@ validate_snow3g_f8_2_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
         /* Test with all vectors */
         for (j = 0; j < numVectors; j++) {
                 uint32_t bitOffsets[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
-                uint32_t bitLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
+                uint32_t byteLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
 
                 const int length = (int) testVectors[j].msgSize / 8;
 
                 /* Create test Data for num Packets */
                 for (i = 0; i < numPackets; i++) {
                         packetLen[i] = length;
-                        bitLens[i] = length * 8;
+                        byteLens[i] = (uint32_t) length;
                         bitOffsets[i] = 0;
 
                         pKey[i] = malloc(IMB_KEY_256_BYTES);
@@ -792,7 +538,7 @@ validate_snow3g_f8_2_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 /* TEST IN-PLACE ENCRYPTION/DECRYPTION */
                 /*Test the encrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pSrcBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pSrcBuff, byteLens,
                                          bitOffsets, IMB_DIR_ENCRYPT, 2);
                 else
                         IMB_SNOW3G_F8_2_BUFFER(mb_mgr, pKeySched[0], pIV[0], pIV[1], pSrcBuff[0],
@@ -819,7 +565,7 @@ validate_snow3g_f8_2_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Test the decrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pSrcBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pSrcBuff, byteLens,
                                          bitOffsets, IMB_DIR_DECRYPT, 2);
                 else
                         IMB_SNOW3G_F8_2_BUFFER(mb_mgr, pKeySched[0], pIV[0], pIV[1], pSrcBuff[0],
@@ -842,7 +588,7 @@ validate_snow3g_f8_2_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 /* TEST OUT-OF-PLACE ENCRYPTION/DECRYPTION */
                 /*Test the encrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens,
                                          bitOffsets, IMB_DIR_ENCRYPT, 2);
                 else
                         IMB_SNOW3G_F8_2_BUFFER(mb_mgr, pKeySched[0], pIV[0], pIV[1], pSrcBuff[0],
@@ -870,7 +616,7 @@ validate_snow3g_f8_2_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Test the decrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens,
                                          bitOffsets, IMB_DIR_DECRYPT, 2);
                 else
                         IMB_SNOW3G_F8_2_BUFFER(mb_mgr, pKeySched[0], pIV[0], pIV[1], pSrcBuff[0],
@@ -952,7 +698,7 @@ validate_snow3g_f8_4_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
         uint8_t *pIV[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t packetLen[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t bitOffsets[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
-        uint32_t bitLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
+        uint32_t byteLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         int keyLen = IMB_KEY_256_BYTES;
         int status = -1;
 
@@ -987,7 +733,7 @@ validate_snow3g_f8_4_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 /* Create test Data for num Packets */
                 for (i = 0; i < numPackets; i++) {
                         packetLen[i] = length;
-                        bitLens[i] = length * 8;
+                        byteLens[i] = (uint32_t) length;
                         bitOffsets[i] = 0;
 
                         pKey[i] = malloc(keyLen);
@@ -1032,7 +778,7 @@ validate_snow3g_f8_4_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 /* TEST IN-PLACE ENCRYPTION/DECRYPTION */
                 /*Test the encrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pSrcBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pSrcBuff, byteLens,
                                          bitOffsets, IMB_DIR_ENCRYPT, 4);
                 else
                         IMB_SNOW3G_F8_4_BUFFER(mb_mgr, pKeySched[0], pIV[0], pIV[1], pIV[2], pIV[3],
@@ -1061,7 +807,7 @@ validate_snow3g_f8_4_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Test the decrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pSrcBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pSrcBuff, byteLens,
                                          bitOffsets, IMB_DIR_DECRYPT, 4);
                 else
                         IMB_SNOW3G_F8_4_BUFFER(mb_mgr, pKeySched[0], pIV[0], pIV[1], pIV[2], pIV[3],
@@ -1085,7 +831,7 @@ validate_snow3g_f8_4_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 /* TEST OUT-OF-PLACE ENCRYPTION/DECRYPTION */
                 /*Test the encrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens,
                                          bitOffsets, IMB_DIR_ENCRYPT, 4);
                 else
                         IMB_SNOW3G_F8_4_BUFFER(mb_mgr, pKeySched[0], pIV[0], pIV[1], pIV[2], pIV[3],
@@ -1115,7 +861,7 @@ validate_snow3g_f8_4_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 }
                 /*Test the decrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens,
                                          bitOffsets, IMB_DIR_DECRYPT, 4);
                 else
                         IMB_SNOW3G_F8_4_BUFFER(mb_mgr, pKeySched[0], pIV[0], pIV[1], pIV[2], pIV[3],
@@ -1172,7 +918,7 @@ validate_snow3g_f8_4_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
         for (i = 0; i < numPackets; i++) {
                 /* Test for packets of different length. */
                 packetLen[i] = length - (i * 12);
-                bitLens[i] = packetLen[i] * 8;
+                byteLens[i] = packetLen[i];
                 bitOffsets[i] = 0;
 
                 pKey[i] = malloc(keyLen);
@@ -1217,7 +963,7 @@ validate_snow3g_f8_4_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
         /* Test the encrypt */
         if (job_api)
-                submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens, bitOffsets,
+                submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens, bitOffsets,
                                  IMB_DIR_ENCRYPT, 4);
         else
                 IMB_SNOW3G_F8_4_BUFFER(mb_mgr, pKeySched[0], pIV[0], pIV[1], pIV[2], pIV[3],
@@ -1276,7 +1022,7 @@ validate_snow3g_f8_8_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
         uint8_t *pIV[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t packetLen[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t bitOffsets[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
-        uint32_t bitLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
+        uint32_t byteLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         int keyLen = IMB_KEY_256_BYTES;
         int status = -1;
 
@@ -1311,7 +1057,7 @@ validate_snow3g_f8_8_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 /* Create test Data for num Packets */
                 for (i = 0; i < numPackets; i++) {
                         packetLen[i] = length;
-                        bitLens[i] = length * 8;
+                        byteLens[i] = (uint32_t) length;
                         bitOffsets[i] = 0;
 
                         pKey[i] = malloc(keyLen);
@@ -1356,7 +1102,7 @@ validate_snow3g_f8_8_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Test the encrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens,
                                          bitOffsets, IMB_DIR_ENCRYPT, 8);
                 else
                         IMB_SNOW3G_F8_8_BUFFER(mb_mgr, pKeySched[0], pIV[0], pIV[1], pIV[2], pIV[3],
@@ -1383,7 +1129,7 @@ validate_snow3g_f8_8_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Test the decrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pDstBuff, pSrcBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pDstBuff, pSrcBuff, byteLens,
                                          bitOffsets, IMB_DIR_DECRYPT, 8);
                 else
                         IMB_SNOW3G_F8_8_BUFFER(mb_mgr, pKeySched[0], pIV[0], pIV[1], pIV[2], pIV[3],
@@ -1442,7 +1188,7 @@ validate_snow3g_f8_8_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
         for (i = 0; i < numPackets; i++) {
                 /* Test for packets of different length. */
                 packetLen[i] = length - (i * 12);
-                bitLens[i] = packetLen[i] * 8;
+                byteLens[i] = packetLen[i];
                 bitOffsets[i] = 0;
 
                 pKey[i] = malloc(keyLen);
@@ -1487,7 +1233,7 @@ validate_snow3g_f8_8_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
         /* Test the encrypt */
         if (job_api)
-                submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens, bitOffsets,
+                submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens, bitOffsets,
                                  IMB_DIR_ENCRYPT, 8);
         else
                 IMB_SNOW3G_F8_8_BUFFER(
@@ -1551,7 +1297,7 @@ validate_snow3g_f8_8_blocks_multi_key(struct IMB_MGR *mb_mgr, uint32_t job_api,
         uint8_t *pIV[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t packetLen[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t bitOffsets[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
-        uint32_t bitLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
+        uint32_t byteLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
 
         int status = -1;
 
@@ -1589,7 +1335,7 @@ validate_snow3g_f8_8_blocks_multi_key(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 length = (int) testVectors[j].msgSize / 8;
                 packetLen[i] = length;
-                bitLens[i] = length * 8;
+                byteLens[i] = (uint32_t) length;
                 bitOffsets[i] = 0;
 
                 pKeySched[i] = malloc(size);
@@ -1632,7 +1378,7 @@ validate_snow3g_f8_8_blocks_multi_key(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
         /*Test the encrypt*/
         if (job_api)
-                submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens, bitOffsets,
+                submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens, bitOffsets,
                                  IMB_DIR_ENCRYPT, 8);
         else
                 IMB_SNOW3G_F8_8_BUFFER_MULTIKEY(
@@ -1657,7 +1403,7 @@ validate_snow3g_f8_8_blocks_multi_key(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
         /*Test the decrypt*/
         if (job_api)
-                submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens, bitOffsets,
+                submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens, bitOffsets,
                                  IMB_DIR_DECRYPT, 8);
         else
                 IMB_SNOW3G_F8_8_BUFFER_MULTIKEY(
@@ -1718,7 +1464,7 @@ validate_snow3g_f8_n_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
         uint8_t *pIV[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t packetLen[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t bitOffsets[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
-        uint32_t bitLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
+        uint32_t byteLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         int keyLen = IMB_KEY_256_BYTES;
         int status = -1;
 
@@ -1754,7 +1500,7 @@ validate_snow3g_f8_n_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
         for (i = 0; i < numPackets; i++) {
 
                 packetLen[i] = length;
-                bitLens[i] = length * 8;
+                byteLens[i] = (uint32_t) length;
                 bitOffsets[i] = 0;
 
                 pKey[i] = malloc(keyLen);
@@ -1801,7 +1547,7 @@ validate_snow3g_f8_n_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
         for (i = 0; i < IMB_SNOW3G_NUM_SUPPORTED_BUFFERS; i++) {
                 /*Test the encrypt*/
                 if (job_api) {
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens,
                                          bitOffsets, IMB_DIR_ENCRYPT, i + 1);
                 } else {
                         IMB_SNOW3G_F8_N_BUFFER(mb_mgr, *pKeySched, (const void *const *) pIV,
@@ -1824,7 +1570,7 @@ validate_snow3g_f8_n_blocks(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Test the Decrypt*/
                 if (job_api) {
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens,
                                          bitOffsets, IMB_DIR_DECRYPT, i + 1);
                 } else {
                         IMB_SNOW3G_F8_N_BUFFER(mb_mgr, *pKeySched, (const void *const *) pIV,
@@ -1886,7 +1632,7 @@ validate_snow3g_f8_n_blocks_linear(struct IMB_MGR *mb_mgr, uint32_t job_api,
         uint8_t *pIV[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t packetLen[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t bitOffsets[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
-        uint32_t bitLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
+        uint32_t byteLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         int keyLen = IMB_KEY_256_BYTES;
         int status = -1;
 
@@ -1919,7 +1665,7 @@ validate_snow3g_f8_n_blocks_linear(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 const int length = (int) testVectors[0].msgSize / 8;
 
                 packetLen[i] = length;
-                bitLens[i] = length * 8;
+                byteLens[i] = (uint32_t) length;
                 bitOffsets[i] = 0;
 
                 pKey[i] = malloc(keyLen);
@@ -1988,7 +1734,7 @@ validate_snow3g_f8_n_blocks_linear(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Test the encrypt*/
                 if (job_api) {
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff_const, pDstBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff_const, pDstBuff, byteLens,
                                          bitOffsets, IMB_DIR_ENCRYPT, i + 1);
                 } else {
                         IMB_SNOW3G_F8_N_BUFFER(mb_mgr, *pKeySched, (const void *const *) pIV,
@@ -2012,7 +1758,7 @@ validate_snow3g_f8_n_blocks_linear(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Test the Decrypt*/
                 if (job_api) {
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pDstBuff_const, pSrcBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pDstBuff_const, pSrcBuff, byteLens,
                                          bitOffsets, IMB_DIR_DECRYPT, i + 1);
                 } else {
                         IMB_SNOW3G_F8_N_BUFFER(mb_mgr, *pKeySched, (const void *const *) pIV,
@@ -2079,7 +1825,7 @@ validate_snow3g_f8_n_blocks_linear_mkeys(struct IMB_MGR *mb_mgr, uint32_t job_ap
         uint8_t **pIV = NULL;
         uint32_t *packetLen = NULL;
         uint32_t *bitOffsets = NULL;
-        uint32_t *bitLens = NULL;
+        uint32_t *byteLens = NULL;
         int status = -1;
 
         (void) uia2_ctx;
@@ -2105,10 +1851,10 @@ validate_snow3g_f8_n_blocks_linear_mkeys(struct IMB_MGR *mb_mgr, uint32_t job_ap
         pKeySched = malloc(sizeof(*pKeySched) * numVectors);
         packetLen = malloc(sizeof(*packetLen) * numVectors);
         bitOffsets = malloc(sizeof(*bitOffsets) * numVectors);
-        bitLens = malloc(sizeof(*bitLens) * numVectors);
+        byteLens = malloc(sizeof(*byteLens) * numVectors);
 
         if (!pSrcBuff || !pSrcBuff_const || !pDstBuff || !pDstBuff_const || !pIV || !pKey ||
-            !pKeySched || !packetLen || !bitOffsets || !bitLens)
+            !pKeySched || !packetLen || !bitOffsets || !byteLens)
                 goto snow3g_f8_n_buff_linear_mkey_early_exit;
 
         memset(pSrcBuff, 0, sizeof(*pSrcBuff) * numVectors);
@@ -2120,7 +1866,7 @@ validate_snow3g_f8_n_blocks_linear_mkeys(struct IMB_MGR *mb_mgr, uint32_t job_ap
         memset(pKeySched, 0, sizeof(*pKeySched) * numVectors);
         memset(packetLen, 0, sizeof(*packetLen) * numVectors);
         memset(bitOffsets, 0, sizeof(*bitOffsets) * numVectors);
-        memset(bitLens, 0, sizeof(*bitLens) * numVectors);
+        memset(byteLens, 0, sizeof(*byteLens) * numVectors);
 
         size = IMB_SNOW3G_KEY_SCHED_SIZE(mb_mgr);
         if (!size)
@@ -2134,7 +1880,7 @@ validate_snow3g_f8_n_blocks_linear_mkeys(struct IMB_MGR *mb_mgr, uint32_t job_ap
                 const int length = (int) testVectors[j].msgSize / 8;
 
                 packetLen[i] = length;
-                bitLens[i] = length * 8;
+                byteLens[i] = (uint32_t) length;
                 bitOffsets[i] = 0;
 
                 pKey[i] = malloc(testVectors[j].keySize / 8);
@@ -2214,7 +1960,7 @@ validate_snow3g_f8_n_blocks_linear_mkeys(struct IMB_MGR *mb_mgr, uint32_t job_ap
                         if (job_api) {
                                 submit_uea2_jobs(mb_mgr, &pKeySched[idx], &pIV[idx],
                                                  &pSrcBuff_const[idx], &pDstBuff[idx],
-                                                 &bitLens[idx], &bitOffsets[idx], IMB_DIR_ENCRYPT,
+                                                 &byteLens[idx], &bitOffsets[idx], IMB_DIR_ENCRYPT,
                                                  nb_elem);
                         } else {
                                 IMB_SNOW3G_F8_N_BUFFER_MULTIKEY(
@@ -2258,7 +2004,7 @@ validate_snow3g_f8_n_blocks_linear_mkeys(struct IMB_MGR *mb_mgr, uint32_t job_ap
                         if (job_api) {
                                 submit_uea2_jobs(mb_mgr, &pKeySched[idx], &pIV[idx],
                                                  &pDstBuff_const[idx], &pSrcBuff[idx],
-                                                 &bitLens[idx], &bitOffsets[idx], IMB_DIR_DECRYPT,
+                                                 &byteLens[idx], &bitOffsets[idx], IMB_DIR_DECRYPT,
                                                  nb_elem);
                         } else {
                                 IMB_SNOW3G_F8_N_BUFFER_MULTIKEY(
@@ -2325,8 +2071,8 @@ snow3g_f8_n_buff_linear_mkey_early_exit:
                 free(pKeySched);
         if (bitOffsets != NULL)
                 free(bitOffsets);
-        if (bitLens != NULL)
-                free(bitLens);
+        if (byteLens != NULL)
+                free(byteLens);
 
         if (status < 0)
                 test_suite_update(uea2_ctx, 0, 1);
@@ -2350,7 +2096,7 @@ validate_snow3g_f8_n_blocks_multi(struct IMB_MGR *mb_mgr, uint32_t job_api,
         uint8_t *pIV[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t packetLen[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         uint32_t bitOffsets[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
-        uint32_t bitLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
+        uint32_t byteLens[IMB_SNOW3G_NUM_SUPPORTED_BUFFERS];
         int status = -1;
 
         (void) uia2_ctx;
@@ -2386,7 +2132,7 @@ validate_snow3g_f8_n_blocks_multi(struct IMB_MGR *mb_mgr, uint32_t job_api,
                 const int length = (int) testVectors[j].msgSize / 8;
 
                 packetLen[i] = length;
-                bitLens[i] = length * 8;
+                byteLens[i] = (uint32_t) length;
                 bitOffsets[i] = 0;
 
                 pKeySched[i] = malloc(size);
@@ -2432,7 +2178,7 @@ validate_snow3g_f8_n_blocks_multi(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Test the encrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pSrcBuff, pDstBuff, byteLens,
                                          bitOffsets, IMB_DIR_ENCRYPT, i + 1);
                 else
                         IMB_SNOW3G_F8_N_BUFFER_MULTIKEY(
@@ -2458,7 +2204,7 @@ validate_snow3g_f8_n_blocks_multi(struct IMB_MGR *mb_mgr, uint32_t job_api,
 
                 /*Test the Decrypt*/
                 if (job_api)
-                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pDstBuff, pSrcBuff, bitLens,
+                        submit_uea2_jobs(mb_mgr, pKeySched, pIV, pDstBuff, pSrcBuff, byteLens,
                                          bitOffsets, IMB_DIR_DECRYPT, i + 1);
                 else
                         IMB_SNOW3G_F8_N_BUFFER_MULTIKEY(
@@ -2577,7 +2323,7 @@ validate_snow3g_f9(struct IMB_MGR *mb_mgr, uint32_t job_api, struct test_suite_c
                         for (j = 0; j < test_num_jobs_size; j++) {
                                 int ret = submit_uia2_job(
                                         mb_mgr, (uint8_t *) pKeySched, pIV, srcBuff, digest,
-                                        (const uint32_t) testVectors[i].msgSize,
+                                        (const uint32_t)(testVectors[i].msgSize / 8),
                                         (const uint8_t *) testVectors[i].tag, test_num_jobs[j]);
                                 if (ret < 0) {
                                         printf("IMB_SNOW3G_F9 JOB API vector num:%zu\n",

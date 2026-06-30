@@ -77,7 +77,6 @@ imb_hash_burst_get_size(const IMB_MGR *mb_mgr, const IMB_HASH_ALG algo, unsigned
                 *out_burst_size = ((MB_MGR_SHA_512_OOO *) (mb_mgr->sha_512_ooo))->total_num_lanes;
                 break;
         case IMB_AUTH_AES_CMAC:
-        case IMB_AUTH_AES_CMAC_BITLEN:
                 *out_burst_size = ((MB_MGR_CMAC_OOO *) (mb_mgr->aes_cmac_ooo))->total_num_lanes;
                 break;
         case IMB_AUTH_AES_CMAC_256:

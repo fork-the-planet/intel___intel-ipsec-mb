@@ -2291,63 +2291,6 @@ SNOW3G_F8_1_BUFFER(const snow3g_key_schedule_t *pHandle, const void *pIV, const 
 }
 
 /**
- * @brief Single bit-length buffer F8 encrypt/decrypt
- * @param[in] pHandle      pointer to precomputed key schedule
- * @param[in] pIV          pointer to IV
- * @param[in] pBufferIn    pointer to an input buffer
- * @param[out] pBufferOut  pointer to an output buffer
- * @param[in] lengthInBits message length in bits
- * @param[in] offsetInBits message offset in bits
- */
-void
-SNOW3G_F8_1_BUFFER_BIT(const snow3g_key_schedule_t *pHandle, const void *pIV, const void *pBufferIn,
-                       void *pBufferOut, const uint32_t lengthInBits, const uint32_t offsetInBits)
-{
-#ifdef SAFE_PARAM
-        /* reset error status */
-        imb_set_errno(NULL, 0);
-
-        if (pHandle == NULL) {
-                imb_set_errno(NULL, IMB_ERR_NULL_EXP_KEY);
-                return;
-        }
-        if (pIV == NULL) {
-                imb_set_errno(NULL, IMB_ERR_NULL_IV);
-                return;
-        }
-
-        if (pBufferIn == NULL) {
-                imb_set_errno(NULL, IMB_ERR_NULL_SRC);
-                return;
-        }
-        if (pBufferOut == NULL) {
-                imb_set_errno(NULL, IMB_ERR_NULL_DST);
-                return;
-        }
-        if ((lengthInBits == 0) || (lengthInBits > SNOW3G_MAX_BITLEN)) {
-                imb_set_errno(NULL, IMB_ERR_CIPH_LEN);
-                return;
-        }
-#endif
-        const size_t off_bytes = offsetInBits / 8;
-        uint8_t *dst = ((uint8_t *) pBufferOut) + off_bytes;
-        const uint8_t *src = ((const uint8_t *) pBufferIn) + off_bytes;
-
-        uint8_t save_start = 0, save_end = 0;
-        const size_t off_bits = offsetInBits & 7;
-
-        msg_save_start_end(dst, off_bits, lengthInBits, &save_start, &save_end);
-        msg_shl_copy(dst, src, off_bits, lengthInBits);
-
-        const uint32_t len_bytes = (lengthInBits + 7) / 8; /* round up */
-
-        SNOW3G_F8_1_BUFFER(pHandle, pIV, dst, dst, len_bytes);
-
-        msg_shr(dst, off_bits, lengthInBits);
-        msg_restore_start_end(dst, off_bits, lengthInBits, save_start, save_end);
-}
-
-/**
  * @brief Two buffer F8 encrypt/decrypt with the same key schedule
  *
  * Two buffers enc/dec with the same key schedule.

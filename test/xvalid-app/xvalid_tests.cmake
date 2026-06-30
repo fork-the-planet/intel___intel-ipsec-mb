@@ -117,7 +117,6 @@ set(HASH_ALGOS
     hmac-md5
     aes-cmac-128
     null-hash
-    aes-cmac-128-bit-length
     sha1
     sha224
     sha256

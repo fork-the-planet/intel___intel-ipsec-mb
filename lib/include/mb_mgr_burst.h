@@ -978,20 +978,8 @@ submit_aes_cmac_burst(IMB_MGR *state, IMB_JOB *jobs, const uint32_t n_jobs, cons
                         }
                 }
         }
-
-        /*
-         * CMAC and CMAC256 OOO MGRs require job len in bits
-         * Scale up from bytes to bits if not CMAC_BITLEN
-         */
-        if (hash_alg != IMB_AUTH_AES_CMAC_BITLEN)
-                for (i = 0; i < n_jobs; i++) {
-                        IMB_JOB *job = &jobs[i];
-
-                        job->msg_len_to_hash_in_bits = job->msg_len_to_hash_in_bytes * 8;
-                }
-
         if (hash_alg != IMB_AUTH_AES_CMAC_256) {
-                /* AES-CMAC 128 and AES-CMAC 128 (BITLEN) */
+                /* AES-CMAC 128 */
                 MB_MGR_CMAC_OOO *aes_cmac_ooo = state->aes_cmac_ooo;
 
                 /* submit all jobs */
@@ -1082,9 +1070,6 @@ submit_hash_burst_and_check(IMB_MGR *state, IMB_JOB *jobs, const uint32_t n_jobs
                 return submit_burst_sha_x(state, jobs, n_jobs, run_check, IMB_AUTH_SHA_512);
         case IMB_AUTH_AES_CMAC:
                 return submit_aes_cmac_burst(state, jobs, n_jobs, run_check, IMB_AUTH_AES_CMAC);
-        case IMB_AUTH_AES_CMAC_BITLEN:
-                return submit_aes_cmac_burst(state, jobs, n_jobs, run_check,
-                                             IMB_AUTH_AES_CMAC_BITLEN);
         case IMB_AUTH_AES_CMAC_256:
                 return submit_aes_cmac_burst(state, jobs, n_jobs, run_check, IMB_AUTH_AES_CMAC_256);
         default:

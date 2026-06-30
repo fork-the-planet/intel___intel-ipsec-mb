@@ -36,7 +36,6 @@
 #define CLEAR_SCRATCH_SIMD_REGS clear_scratch_zmms
 #endif
 
-#define SNOW3G_F8_1_BUFFER_BIT      snow3g_f8_1_buffer_bit_avx512
 #define SNOW3G_F8_1_BUFFER          snow3g_f8_1_buffer_avx512
 #define SNOW3G_F8_2_BUFFER          snow3g_f8_2_buffer_avx512
 #define SNOW3G_F8_4_BUFFER          snow3g_f8_4_buffer_avx512

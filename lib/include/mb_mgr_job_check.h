@@ -33,12 +33,10 @@
 #include "include/kasumi_interface.h"
 #include "include/zuc_internal.h"
 
-#define SNOW3G_MAX_BITLEN (UINT32_MAX)
-#define NIA_MAX_BITLEN    (UINT32_MAX - 1)
-#define NIA_MAX_BYTELEN   (NIA_MAX_BITLEN / 8)
-#define NCA_MAX_BITLEN    NIA_MAX_BITLEN
-#define NCA_MAX_BYTELEN   NIA_MAX_BYTELEN
-#define MB_MAX_LEN16      ((1 << 16) - 2)
+#define SNOW3G_MAX_BYTELEN (UINT32_MAX / BYTESIZE)
+#define NIA_MAX_BYTELEN    ((UINT32_MAX - 1) / BYTESIZE)
+#define NCA_MAX_BYTELEN    NIA_MAX_BYTELEN
+#define MB_MAX_LEN16       ((1 << 16) - 2)
 
 /* used to validate template job structure before computing session_id */
 static inline int
@@ -168,8 +166,8 @@ is_job_invalid_light(IMB_MGR *state, const IMB_CIPHER_MODE cipher_mode, const IM
                         return 1;
                 }
                 break;
-        case IMB_CIPHER_SNOW3G_UEA2_BITLEN:
-        case IMB_CIPHER_KASUMI_UEA1_BITLEN:
+        case IMB_CIPHER_SNOW3G_UEA2:
+        case IMB_CIPHER_KASUMI_UEA1:
         case IMB_CIPHER_SM4_CBC:
         case IMB_CIPHER_SM4_ECB:
         case IMB_CIPHER_SM4_CNTR:
@@ -235,16 +233,15 @@ is_job_invalid_light(IMB_MGR *state, const IMB_CIPHER_MODE cipher_mode, const IM
         case IMB_AUTH_GHASH:
         case IMB_AUTH_CUSTOM:
         case IMB_AUTH_AES_CMAC:
-        case IMB_AUTH_AES_CMAC_BITLEN:
         case IMB_AUTH_AES_CMAC_256:
         case IMB_AUTH_SHA_1:
         case IMB_AUTH_SHA_224:
         case IMB_AUTH_SHA_256:
         case IMB_AUTH_SHA_384:
         case IMB_AUTH_SHA_512:
-        case IMB_AUTH_ZUC_EIA3_BITLEN:
+        case IMB_AUTH_ZUC_EIA3:
         case IMB_AUTH_ZUC_NIA6:
-        case IMB_AUTH_SNOW3G_UIA2_BITLEN:
+        case IMB_AUTH_SNOW3G_UIA2:
         case IMB_AUTH_KASUMI_UIA1:
         case IMB_AUTH_POLY1305:
         case IMB_AUTH_SM3:
@@ -361,11 +358,10 @@ is_job_invalid(IMB_MGR *state, const IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                 32, /* IMB_AUTH_SHA_256 */
                 48, /* IMB_AUTH_SHA_384 */
                 64, /* IMB_AUTH_SHA_512 */
-                4,  /* IMB_AUTH_AES_CMAC 3GPP */
                 8,  /* IMB_AUTH_PON_CRC_BIP */
-                4,  /* IMB_AUTH_ZUC_EIA3_BITLEN */
+                4,  /* IMB_AUTH_ZUC_EIA3 */
                 4,  /* IMB_AUTH_DOCSIS_CRC32 */
-                4,  /* IMB_AUTH_SNOW3G_UIA2_BITLEN */
+                4,  /* IMB_AUTH_SNOW3G_UIA2 */
                 4,  /* IMB_AUTH_KASUMI_UIA1 */
                 16, /* IMB_AUTH_AES_GMAC_128 */
                 16, /* IMB_AUTH_AES_GMAC_192 */
@@ -427,11 +423,10 @@ is_job_invalid(IMB_MGR *state, const IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                 32, /* IMB_AUTH_SHA_256 */
                 48, /* IMB_AUTH_SHA_384 */
                 64, /* IMB_AUTH_SHA_512 */
-                4,  /* IMB_AUTH_AES_CMAC 3GPP */
                 8,  /* IMB_AUTH_PON_CRC_BIP */
-                4,  /* IMB_AUTH_ZUC_EIA3_BITLEN */
+                4,  /* IMB_AUTH_ZUC_EIA3 */
                 4,  /* IMB_AUTH_DOCSIS_CRC32 */
-                4,  /* IMB_AUTH_SNOW3G_UIA2_BITLEN */
+                4,  /* IMB_AUTH_SNOW3G_UIA2 */
                 4,  /* IMB_AUTH_KASUMI_UIA1 */
                 16, /* IMB_AUTH_AES_GMAC_128 */
                 16, /* IMB_AUTH_AES_GMAC_192 */
@@ -1224,7 +1219,7 @@ is_job_invalid(IMB_MGR *state, const IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                         return 1;
                 }
                 break;
-        case IMB_CIPHER_SNOW3G_UEA2_BITLEN:
+        case IMB_CIPHER_SNOW3G_UEA2:
                 if (job->src == NULL) {
                         imb_set_errno(state, IMB_ERR_JOB_NULL_SRC);
                         return 1;
@@ -1245,8 +1240,8 @@ is_job_invalid(IMB_MGR *state, const IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                         imb_set_errno(state, IMB_ERR_JOB_KEY_LEN);
                         return 1;
                 }
-                if (job->msg_len_to_cipher_in_bits == 0 ||
-                    job->msg_len_to_cipher_in_bits > SNOW3G_MAX_BITLEN) {
+                if (job->msg_len_to_cipher_in_bytes == 0 ||
+                    job->msg_len_to_cipher_in_bytes > SNOW3G_MAX_BYTELEN) {
                         imb_set_errno(state, IMB_ERR_JOB_CIPH_LEN);
                         return 1;
                 }
@@ -1255,7 +1250,7 @@ is_job_invalid(IMB_MGR *state, const IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                         return 1;
                 }
                 break;
-        case IMB_CIPHER_KASUMI_UEA1_BITLEN:
+        case IMB_CIPHER_KASUMI_UEA1:
                 if (job->src == NULL) {
                         imb_set_errno(state, IMB_ERR_JOB_NULL_SRC);
                         return 1;
@@ -1276,17 +1271,9 @@ is_job_invalid(IMB_MGR *state, const IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                         imb_set_errno(state, IMB_ERR_JOB_KEY_LEN);
                         return 1;
                 }
-                if (job->msg_len_to_cipher_in_bits == 0 ||
-                    job->msg_len_to_cipher_in_bits > KASUMI_MAX_LEN) {
+                if (job->msg_len_to_cipher_in_bytes == 0 ||
+                    job->msg_len_to_cipher_in_bytes > (KASUMI_MAX_LEN / BYTESIZE)) {
                         imb_set_errno(state, IMB_ERR_JOB_CIPH_LEN);
-                        return 1;
-                }
-                if (job->msg_len_to_cipher_in_bits & 7) {
-                        imb_set_errno(state, IMB_ERR_JOB_CIPH_LEN);
-                        return 1;
-                }
-                if (job->cipher_start_src_offset_in_bits & 7) {
-                        imb_set_errno(state, IMB_ERR_JOB_SRC_OFFSET);
                         return 1;
                 }
                 if (job->iv_len_in_bytes != UINT64_C(8)) {
@@ -1872,14 +1859,7 @@ is_job_invalid(IMB_MGR *state, const IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                 }
                 break;
         case IMB_AUTH_AES_CMAC:
-        case IMB_AUTH_AES_CMAC_BITLEN:
         case IMB_AUTH_AES_CMAC_256:
-                /*
-                 * WARNING: When using IMB_AUTH_AES_CMAC_BITLEN, length of
-                 * message is passed in bits, using job->msg_len_to_hash_in_bits
-                 * (unlike "normal" IMB_AUTH_AES_CMAC, where is passed in bytes,
-                 * using job->msg_len_to_hash_in_bytes).
-                 */
                 if (job->src == NULL) {
                         imb_set_errno(state, IMB_ERR_JOB_NULL_SRC);
                         return 1;
@@ -1902,16 +1882,9 @@ is_job_invalid(IMB_MGR *state, const IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                         imb_set_errno(state, IMB_ERR_JOB_NULL_AUTH);
                         return 1;
                 }
-                if (job->hash_alg == IMB_AUTH_AES_CMAC_BITLEN) {
-                        if (job->msg_len_to_hash_in_bits > (MB_MAX_LEN16 * 8)) {
-                                imb_set_errno(state, IMB_ERR_JOB_AUTH_LEN);
-                                return 1;
-                        }
-                } else {
-                        if (job->msg_len_to_hash_in_bytes > MB_MAX_LEN16) {
-                                imb_set_errno(state, IMB_ERR_JOB_AUTH_LEN);
-                                return 1;
-                        }
+                if (job->msg_len_to_hash_in_bytes > MB_MAX_LEN16) {
+                        imb_set_errno(state, IMB_ERR_JOB_AUTH_LEN);
+                        return 1;
                 }
                 break;
         case IMB_AUTH_SHA_1:
@@ -1972,13 +1945,13 @@ is_job_invalid(IMB_MGR *state, const IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                         return 1;
                 }
                 break;
-        case IMB_AUTH_ZUC_EIA3_BITLEN:
+        case IMB_AUTH_ZUC_EIA3:
                 if (job->src == NULL) {
                         imb_set_errno(state, IMB_ERR_JOB_NULL_SRC);
                         return 1;
                 }
-                if ((job->msg_len_to_hash_in_bits < ZUC_MIN_BITLEN) ||
-                    (job->msg_len_to_hash_in_bits > ZUC_MAX_BITLEN)) {
+                if (job->msg_len_to_hash_in_bytes == 0 ||
+                    job->msg_len_to_hash_in_bytes > ZUC_MAX_BYTELEN) {
                         imb_set_errno(state, IMB_ERR_JOB_AUTH_LEN);
                         return 1;
                 }
@@ -2055,13 +2028,13 @@ is_job_invalid(IMB_MGR *state, const IMB_JOB *job, const IMB_CIPHER_MODE cipher_
                         return 1;
                 }
                 break;
-        case IMB_AUTH_SNOW3G_UIA2_BITLEN:
+        case IMB_AUTH_SNOW3G_UIA2:
                 if (job->src == NULL) {
                         imb_set_errno(state, IMB_ERR_JOB_NULL_SRC);
                         return 1;
                 }
-                if ((job->msg_len_to_hash_in_bits == 0) ||
-                    (job->msg_len_to_hash_in_bits > SNOW3G_MAX_BITLEN)) {
+                if ((job->msg_len_to_hash_in_bytes == 0) ||
+                    (job->msg_len_to_hash_in_bytes > SNOW3G_MAX_BYTELEN)) {
                         imb_set_errno(state, IMB_ERR_JOB_AUTH_LEN);
                         return 1;
                 }

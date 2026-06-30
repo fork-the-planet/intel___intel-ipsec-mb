@@ -41,7 +41,7 @@ aes_cntr_ccm_128_vaes_avx512:
         FUNC_SAVE CNTR
         ;; arg1 - [in] job
         ;; arg2 - [in] NROUNDS
-        ;; arg3 - [in] Type of CNTR operation to do (CNTR/CNTR_BIT/CCM)
+        ;; arg3 - [in] Type of CNTR operation to do (CNTR/CCM)
         CNTR_ENC_DEC arg1, 9, CCM
         FUNC_RESTORE CNTR
 
@@ -57,7 +57,7 @@ aes_cntr_ccm_256_vaes_avx512:
         FUNC_SAVE CNTR
         ;; arg1 - [in] job
         ;; arg2 - [in] NROUNDS
-        ;; arg3 - [in] Type of CNTR operation to do (CNTR/CNTR_BIT/CCM)
+        ;; arg3 - [in] Type of CNTR operation to do (CNTR/CCM)
         CNTR_ENC_DEC arg1, 13, CCM
         FUNC_RESTORE CNTR
 

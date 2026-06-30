@@ -2023,54 +2023,6 @@ test_IMB_KASUMI_INIT_F9_KEY_SCHED(struct IMB_MGR *mgr)
 }
 
 /*
- * @brief Performs direct API invalid param tests for IMB_SNOW3G_F8_1_BUFFER_BIT
- */
-static int
-test_IMB_SNOW3G_F8_1_BUFFER_BIT(struct IMB_MGR *mgr)
-{
-        unsigned i = 1;
-        const snow3g_key_schedule_t exp_key_s = { 0 };
-        const snow3g_key_schedule_t *exp_key = &exp_key_s;
-        const uint8_t iv[BUFF_SIZE] = { 0 };
-        const uint8_t src[BUFF_SIZE] = { 0 };
-        uint8_t dst[BUFF_SIZE];
-        const uint32_t len = 1;
-        const uint32_t offset = 1;
-        int seg_err; /* segfault flag */
-
-        seg_err = setjmp(dir_api_param_env);
-        if (seg_err) {
-                printf("%s: segfault occurred!", __func__);
-                return 1;
-        }
-
-        struct fn_args {
-                const snow3g_key_schedule_t *exp_key;
-                const void *iv;
-                const void *src;
-                void *dst;
-                const uint32_t len;
-                const uint32_t offset;
-                const IMB_ERR exp_err;
-        } fn_args[] = { { NULL, iv, src, dst, len, offset, IMB_ERR_NULL_EXP_KEY },
-                        { exp_key, NULL, src, dst, len, offset, IMB_ERR_NULL_IV },
-                        { exp_key, iv, NULL, dst, len, offset, IMB_ERR_NULL_SRC },
-                        { exp_key, iv, src, NULL, len, offset, IMB_ERR_NULL_DST },
-                        { exp_key, iv, src, dst, 0, offset, IMB_ERR_CIPH_LEN } };
-
-        /* Iterate over args */
-        for (i = 0; i < DIM(fn_args); i++) {
-                const struct fn_args *ap = &fn_args[i];
-
-                IMB_SNOW3G_F8_1_BUFFER_BIT(mgr, ap->exp_key, ap->iv, ap->src, ap->dst, ap->len,
-                                           ap->offset);
-                if (unexpected_err(mgr, ap->exp_err, "IMB_SNOW3G_F8_1_BUFFER_BIT"))
-                        return 1;
-        }
-        return 0;
-}
-
-/*
  * @brief Performs direct API invalid param tests for IMB_SNOW3G_F8_1_BUFFER */
 static int
 test_IMB_SNOW3G_F8_1_BUFFER(struct IMB_MGR *mgr)
@@ -4541,9 +4493,6 @@ direct_api_param_test(struct IMB_MGR *mb_mgr)
         run++;
 
         errors += test_IMB_KASUMI_INIT_F9_KEY_SCHED(mb_mgr);
-        run++;
-
-        errors += test_IMB_SNOW3G_F8_1_BUFFER_BIT(mb_mgr);
         run++;
 
         errors += test_IMB_SNOW3G_F8_1_BUFFER(mb_mgr);

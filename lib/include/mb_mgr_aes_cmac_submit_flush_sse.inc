@@ -76,7 +76,6 @@
 %define tmp2             r14
 
 %define good_lane        r15
-%define rbits            r15
 
 ; STACK_SPACE needs to be an odd multiple of 8
 ; This routine and its callee clobbers all GPRs
@@ -139,12 +138,8 @@ endstruc
         lea     m_last, [state + _aes_cmac_scratch + tmp]
 
         ;; calculate len
-        ;; convert bits to bytes (message length in bits for CMAC)
-        mov     len, [job + _msg_len_to_hash_in_bits]
-        mov     rbits, len
-        add     len, 7      ; inc len if there are remainder bits
-        shr     len, 3
-        and     rbits, 7
+        ;; message length is in bytes
+        mov     len, [job + _msg_len_to_hash_in_bytes]
 
         ;; Check at least 1 or more blocks (get n)
         mov     n, len
@@ -171,10 +166,6 @@ endstruc
         movdqa  xmm0, [state + _aes_cmac_lens]
         XPINSRW xmm0, xmm1, tmp, lane, tmp2, scale_x16
         movdqa  [state + _aes_cmac_lens], xmm0
-
-        ;; check remainder bits
-        or      rbits, rbits
-        jnz     %%_not_complete_block_3gpp
 
         ;; check if complete block
         or      r, r
@@ -439,74 +430,6 @@ align_label
         mov     n, 1
         jmp     %%_not_complete_block
 
-align_label
-%%_not_complete_block_3gpp:
-        ;; bit pad last block
-        ;; xor with skey2
-        ;; copy to m_last
-
-        ;; load pointer to src
-        mov     tmp, [job + _src]
-        add     tmp, [job + _hash_start_src_offset_in_bytes]
-        lea     tmp3, [n - 1]
-        shl     tmp3, 4
-        add     tmp, tmp3
-
-        ;; check if partial block
-        or      r, r
-        jz      %%_load_full_block_3gpp
-
-        simd_load_sse_15_1 xmm0, tmp, r
-        dec     r
-
-align_label
-%%_update_mlast_3gpp:
-        ;; set last byte padding mask
-        ;; shift into correct xmm idx
-
-        ;; save and restore rcx on windows
-%ifndef LINUX
-        mov     tmp, rcx
-%endif
-        mov     rcx, rbits
-        mov     tmp3, 0xff
-        shr     tmp3, cl
-        movq    xmm2, tmp3
-        XPSLLB  xmm2, r, xmm1, tmp2
-
-        ;; pad final byte
-        pandn   xmm2, xmm0
-%ifndef LINUX
-        mov     rcx, tmp
-%endif
-        ;; set OR mask to pad final bit
-        mov     tmp2, tmp3
-        shr     tmp2, 1
-        xor     tmp2, tmp3 ; XOR to get OR mask
-        movq    xmm3, tmp2
-        ;; xmm1 contains shift table from previous shift
-        pshufb  xmm3, xmm1
-
-        ;; load skey2 address
-        mov     tmp3, [job + _skey2]
-        movdqu  xmm1, [tmp3]
-
-        ;; set final padding bit
-        por     xmm2, xmm3
-
-        ;; XOR last partial block with skey2
-        ;; update mlast
-        pxor    xmm2, xmm1
-        movdqa  [m_last], xmm2
-
-        jmp     %%_step_5
-
-align_label
-%%_load_full_block_3gpp:
-        movdqu  xmm0, [tmp]
-        mov     r, 0xf
-        jmp     %%_update_mlast_3gpp
 %endif
 %endmacro
-
 %endif ;; MB_MGR_AES_CMAC_SUBMIT_FLUSH_SSE_INC

@@ -65,7 +65,6 @@ mksection .text
 %define idx             rbp
 %define unused_lanes    rbx
 %define r               rbx
-%define rbits           r15
 
 %define m_last          r14
 %define n               r13
@@ -336,12 +335,8 @@ align_label
         lea     m_last, [state + _aes_cmac_scratch + TMP_GP_1]
 
         ;; calculate len
-        ;; convert bits to bytes (message length in bits for CMAC)
-        mov     len, [job + _msg_len_to_hash_in_bits]
-        mov     rbits, len
-        add     len, 7      ; inc len if there are remainder bits
-        shr     len, 3
-        and     rbits, 7
+        ;; message length is in bytes
+        mov     len, [job + _msg_len_to_hash_in_bytes]
 
         ;; Check number of blocks and for partial block
         mov     r, len  ; set remainder
@@ -366,10 +361,6 @@ align_label
         vmovdqa YMM_TMP_0, [state + _aes_cmac_lens]
         VPINSRW_256 YMM_TMP_0, XMM_TMP_1, XMM_TMP_2, TMP_GP_3, lane, TMP_GP_1, scale_x16
         vmovdqa [state + _aes_cmac_lens], YMM_TMP_0
-
-        ;; check remainder bits
-        or      rbits, rbits
-        jnz     %%_not_complete_block_3gpp
 
         ;; check if complete block
         or      r, r
@@ -604,73 +595,6 @@ align_label
         mov     n, 1
         jmp     %%_not_complete_block
 
-align_label
-%%_not_complete_block_3gpp:
-        ;; bit pad last block
-        ;; xor with skey2
-        ;; copy to m_last
-
-        ;; load pointer to src
-        mov     TMP_GP_1, [job + _src]
-        add     TMP_GP_1, [job + _hash_start_src_offset_in_bytes]
-        lea     TMP_GP_3, [n - 1]
-        shl     TMP_GP_3, 4
-        add     TMP_GP_1, TMP_GP_3
-
-        ;; check if partial block
-        or      r, r
-        jz      %%_load_full_block_3gpp
-
-        simd_load_avx_15_1 XMM_TMP_0, TMP_GP_1, r
-        dec     r
-
-align_label
-%%_update_mlast_3gpp:
-        ;; set last byte padding mask
-        ;; shift into correct xmm idx
-
-        ;; save and restore rcx on windows
-%ifndef LINUX
-        mov     TMP_GP_1, rcx
-%endif
-        mov     rcx, rbits
-        mov     TMP_GP_3, 0xff
-        shr     TMP_GP_3, cl
-        vmovq   XMM_TMP_2, TMP_GP_3
-        XVPSLLB XMM_TMP_2, r, XMM_TMP_1, TMP_GP_2
-
-        ;; pad final byte
-        vpandn  XMM_TMP_2, XMM_TMP_0
-%ifndef LINUX
-        mov     rcx, TMP_GP_1
-%endif
-        ;; set OR mask to pad final bit
-        mov     TMP_GP_2, TMP_GP_3
-        shr     TMP_GP_2, 1
-        xor     TMP_GP_2, TMP_GP_3 ; XOR to get OR mask
-        vmovq   XMM_TMP_3, TMP_GP_2
-        ;; XMM_TMP_1 contains shift table from previous shift
-        vpshufb XMM_TMP_3, XMM_TMP_1
-
-        ;; load skey2 address
-        mov     TMP_GP_3, [job + _skey2]
-        vmovdqu XMM_TMP_1, [TMP_GP_3]
-
-        ;; set final padding bit
-        vpor    XMM_TMP_2, XMM_TMP_3
-
-        ;; XOR last partial block with skey2
-        ;; update mlast
-        vpxor   XMM_TMP_2, XMM_TMP_1
-        vmovdqa [m_last], XMM_TMP_2
-
-        jmp     %%_step_5
-
-align_label
-%%_load_full_block_3gpp:
-        vmovdqu XMM_TMP_0, [TMP_GP_1]
-        mov     r, 0xf
-        jmp     %%_update_mlast_3gpp
 %endif ;; SUBMIT
 
 align_label

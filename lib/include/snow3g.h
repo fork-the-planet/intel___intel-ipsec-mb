@@ -32,11 +32,6 @@
  * SSE
  ******************************************************************************/
 void
-snow3g_f8_1_buffer_bit_sse(const snow3g_key_schedule_t *pCtx, const void *pIV,
-                           const void *pBufferIn, void *pBufferOut,
-                           const uint32_t cipherLengthInBits, const uint32_t offsetInBits);
-
-void
 snow3g_f8_1_buffer_sse(const snow3g_key_schedule_t *pCtx, const void *pIV, const void *pBufferIn,
                        void *pBufferOut, const uint32_t lengthInBytes);
 
@@ -103,11 +98,6 @@ snow3g_f9_1_buffer_internal_avx(const uint64_t *pBufferIn, const uint32_t KS[5],
                                 const uint64_t lengthInBits);
 
 void
-snow3g_f8_1_buffer_bit_avx2(const snow3g_key_schedule_t *pCtx, const void *pIV,
-                            const void *pBufferIn, void *pBufferOut,
-                            const uint32_t cipherLengthInBits, const uint32_t offsetInBits);
-
-void
 snow3g_f8_1_buffer_avx2(const snow3g_key_schedule_t *pCtx, const void *pIV, const void *pBufferIn,
                         void *pBufferOut, const uint32_t lengthInBytes);
 
@@ -165,11 +155,6 @@ snow3g_init_key_sched_avx2(const void *pKey, snow3g_key_schedule_t *pCtx);
 /*******************************************************************************
  * AVX512
  ******************************************************************************/
-
-void
-snow3g_f8_1_buffer_bit_avx512(const snow3g_key_schedule_t *pCtx, const void *pIV,
-                              const void *pBufferIn, void *pBufferOut,
-                              const uint32_t cipherLengthInBits, const uint32_t offsetInBits);
 
 void
 snow3g_f8_1_buffer_avx512(const snow3g_key_schedule_t *pCtx, const void *pIV, const void *pBufferIn,

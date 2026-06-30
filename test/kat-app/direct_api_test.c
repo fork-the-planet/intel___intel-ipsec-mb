@@ -843,21 +843,10 @@ test_snow3g_api(struct IMB_MGR *mgr)
                 return 1;
         }
         print_progress();
-
         IMB_SNOW3G_F8_1_BUFFER(mgr, NULL, NULL, NULL, NULL, inv_len);
         IMB_SNOW3G_F8_1_BUFFER(mgr, NULL, NULL, NULL, out_buf, text_len);
         if (memcmp(out_buf, zero_buf, text_len) != 0) {
                 printf("%s: IMB_SNOW3G_F8_1_BUFFER, invalid "
-                       "param test failed!\n",
-                       __func__);
-                return 1;
-        }
-        print_progress();
-
-        IMB_SNOW3G_F8_1_BUFFER_BIT(mgr, NULL, NULL, NULL, NULL, inv_len, inv_len);
-        IMB_SNOW3G_F8_1_BUFFER_BIT(mgr, NULL, NULL, NULL, out_buf, text_len, 0);
-        if (memcmp(out_buf, zero_buf, text_len) != 0) {
-                printf("%s: IMB_SNOW3G_F8_1_BUFFER_BIT, invalid "
                        "param test failed!\n",
                        __func__);
                 return 1;

@@ -425,44 +425,16 @@ submit_eea3_jobs(struct IMB_MGR *mb_mgr, uint8_t **const keys, uint8_t **const i
 }
 
 static int
-test_output(const uint8_t *out, const uint8_t *ref, const uint32_t bytelen, const uint32_t bitlen,
-            const char *err_msg)
+test_output(const uint8_t *out, const uint8_t *ref, const uint32_t bytelen, const char *err_msg)
 {
         int ret = 0;
-        uint32_t byteResidue;
-        uint32_t bitResidue;
-
-        if (bitlen % 8)
-                /* Last byte is not a full byte */
-                ret = memcmp(out, ref, bytelen - 1);
-        else
-                /* Last byte is a full byte */
-                ret = memcmp(out, ref, bytelen);
+        ret = memcmp(out, ref, bytelen);
 
         if (ret) {
                 printf("%s : FAIL\n", err_msg);
                 byte_hexdump("Expected", ref, bytelen);
                 byte_hexdump("Found", out, bytelen);
                 ret = -1;
-                /*
-                 * Check last partial byte if there is one and
-                 * all previous full bytes are correct
-                 */
-        } else if (bitlen % 8) {
-                bitResidue = (0xFF00 >> (bitlen % 8)) & 0x00FF;
-                byteResidue = (ref[bitlen / 8] ^ out[bitlen / 8]) & bitResidue;
-                if (byteResidue) {
-                        printf("%s : FAIL\n", err_msg);
-                        printf("Expected: 0x%02X (last byte)\n", 0xFF & ref[bitlen / 8]);
-                        printf("Found: 0x%02X (last byte)\n", 0xFF & out[bitlen / 8]);
-                        ret = -1;
-                }
-#ifdef DEBUG
-                else {
-                        if (!quiet_mode)
-                                printf("%s : PASS\n", err_msg);
-                }
-#endif
         }
 #ifdef DEBUG
         else {
@@ -503,10 +475,21 @@ submit_and_verify(struct IMB_MGR *mb_mgr, uint8_t **pSrcData, uint8_t **pDstData
         for (i = 0; i < num_buffers; i++) {
                 const struct cipher_test *vector = &vectors[buf_idx[i]];
 
-                packetLen[i] = (uint32_t) (vector->msgSize + 7) / 8;
+                if ((vector->msgSize % 8) != 0) {
+                        printf("Unsupported non-byte-aligned ZUC-EEA3 vector (tcId=%zu, "
+                               "bits=%zu)\n",
+                               vector->tcId, vector->msgSize);
+                        return -1;
+                }
+                packetLen[i] = (uint32_t) (vector->msgSize / 8);
                 iv_lens[i] = IMB_ZUC_IV_LEN_IN_BYTES;
 
                 /* generate IV if params stored in vector */
+                if ((vector->ivSize % 8) != 0) {
+                        printf("Unsupported non-byte-aligned ZUC-EEA3 IV (tcId=%zu, bits=%zu)\n",
+                               vector->tcId, vector->ivSize);
+                        return -1;
+                }
                 if ((vector->ivSize / 8) != iv_lens[i]) {
                         struct zuc_eea3_128_params p = { 0 };
 
@@ -553,13 +536,13 @@ submit_and_verify(struct IMB_MGR *mb_mgr, uint8_t **pSrcData, uint8_t **pDstData
                 if (dir == IMB_DIR_ENCRYPT) {
                         snprintf(msg, sizeof(msg), "%s test %zu, index %u (Enc):", msg_start,
                                  vector->tcId, i);
-                        retTmp = test_output(pDst8, (const uint8_t *) vector->ct, packetLen[i],
-                                             (uint32_t) vector->msgSize, msg);
+                        retTmp =
+                                test_output(pDst8, (const uint8_t *) vector->ct, packetLen[i], msg);
                 } else { /* DECRYPT */
                         snprintf(msg, sizeof(msg), "%s test %zu, index %u (Dec):", msg_start,
                                  vector->tcId, i);
                         retTmp = test_output(pDst8, (const uint8_t *) vector->msg, packetLen[i],
-                                             (uint32_t) vector->msgSize, msg);
+                                             msg);
                 }
                 if (retTmp < 0)
                         ret = retTmp;
@@ -636,7 +619,13 @@ submit_and_verify_zuc_nea6(struct IMB_MGR *mb_mgr, uint8_t **pSrcData, uint8_t *
         for (i = 0; i < num_buffers; i++) {
                 const struct cipher_test *vector = &vectors[buf_idx[i]];
 
-                packetLen[i] = (uint32_t) (vector->msgSize + 7) / 8;
+                if ((vector->msgSize % 8) != 0 || (vector->keySize % 8) != 0 ||
+                    (vector->ivSize % 8) != 0) {
+                        printf("Unsupported non-byte-aligned ZUC-NEA6 vector (tcId=%zu)\n",
+                               vector->tcId);
+                        return -1;
+                }
+                packetLen[i] = (uint32_t) (vector->msgSize / 8);
                 memcpy(pKeys[i], vector->key, vector->keySize / 8);
                 memcpy(pIV[i], vector->iv, vector->ivSize / 8);
                 if (dir == IMB_DIR_ENCRYPT)
@@ -670,13 +659,13 @@ submit_and_verify_zuc_nea6(struct IMB_MGR *mb_mgr, uint8_t **pSrcData, uint8_t *
                 if (dir == IMB_DIR_ENCRYPT) {
                         snprintf(msg, sizeof(msg), "%s test %zu, index %u (Enc):", msg_start,
                                  vector->tcId, i);
-                        retTmp = test_output(pDst8, (const uint8_t *) vector->ct, packetLen[i],
-                                             (uint32_t) vector->msgSize, msg);
+                        retTmp =
+                                test_output(pDst8, (const uint8_t *) vector->ct, packetLen[i], msg);
                 } else { /* DECRYPT */
                         snprintf(msg, sizeof(msg), "%s test %zu, index %u (Dec):", msg_start,
                                  vector->tcId, i);
                         retTmp = test_output(pDst8, (const uint8_t *) vector->msg, packetLen[i],
-                                             (uint32_t) vector->msgSize, msg);
+                                             msg);
                 }
                 if (retTmp < 0)
                         ret = retTmp;

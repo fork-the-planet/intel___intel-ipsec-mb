@@ -171,9 +171,9 @@ misc_cipher_mode_to_str(const IMB_CIPHER_MODE mode)
                 return "aes-ecb";
         case IMB_CIPHER_ZUC_EEA3:
                 return "zuc-eea3";
-        case IMB_CIPHER_SNOW3G_UEA2_BITLEN:
+        case IMB_CIPHER_SNOW3G_UEA2:
                 return "snow3g-uea2";
-        case IMB_CIPHER_KASUMI_UEA1_BITLEN:
+        case IMB_CIPHER_KASUMI_UEA1:
                 return "kasumi-uea1";
         case IMB_CIPHER_CHACHA20:
                 return "chacha20";
@@ -238,15 +238,13 @@ misc_hash_alg_to_str(const IMB_HASH_ALG mode)
                 return "sha384";
         case IMB_AUTH_SHA_512:
                 return "sha512";
-        case IMB_AUTH_AES_CMAC_BITLEN:
-                return "aes-cmac (bitlen)";
         case IMB_AUTH_PON_CRC_BIP:
                 return "pon-crc-bip";
-        case IMB_AUTH_ZUC_EIA3_BITLEN:
+        case IMB_AUTH_ZUC_EIA3:
                 return "zuc-eia3";
         case IMB_AUTH_DOCSIS_CRC32:
                 return "docsis-crc32";
-        case IMB_AUTH_SNOW3G_UIA2_BITLEN:
+        case IMB_AUTH_SNOW3G_UIA2:
                 return "snow3g-uia2";
         case IMB_AUTH_KASUMI_UIA1:
                 return "kasumi-uia1";

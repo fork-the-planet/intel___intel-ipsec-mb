@@ -570,7 +570,7 @@ align_label
 %%_bswap_xcounter:
         vpshufb         xcounter, xbyteswap
         ;; calculate len
-        ;; convert bits to bytes (message length in bits for CNTR_BIT)
+        ;; message length is in bytes
         mov             DWORD(tmp), DWORD(num_bytes)
         and             DWORD(tmp), 15*16
         jz              %%chk             ; multiple of 16x16 or zero
