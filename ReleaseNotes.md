@@ -34,6 +34,9 @@ Library
 - Added SNOW5G-NCA4 SSE type 1 and AVX512 type 2 implementations.
 - Added new SSE type 1 implementation of DES block encryption that is used in
   DES, DOCSIS-DES and 3DES/TDES algorithms across SSE and AVX2 architecture types.
+- Removed ZUC-EEA3 and ZUC-EIA3 direct API support.
+- Removed SNOW3G-UEA2 and SNOW3G-UIA2 direct API support.
+- Removed KASUMI-F8 and KASUMI-F9 direct API support.
 
 Test Applications
 - Added `--offset` parameter to `imb-xvalid` application.
