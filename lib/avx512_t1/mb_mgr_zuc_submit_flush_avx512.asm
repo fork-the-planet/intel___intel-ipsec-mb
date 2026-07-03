@@ -1101,6 +1101,8 @@ align_label
 %%return_submit_nia6:
 %ifdef SAFE_DATA
         clear_scratch_zmms_asm
+%else
+        vzeroupper
 %endif
         mov     rbx, [rsp + _gpr_save + 8*0]
         mov     rbp, [rsp + _gpr_save + 8*1]
