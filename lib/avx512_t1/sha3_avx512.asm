@@ -484,10 +484,6 @@ align_label
         vmovdqu64       [rsp + 32*5], ymm0
         vmovdqu64       [rsp + 32*6], ymm0
         vmovdqu64       [rsp + 32*7], ymm0
-%ifdef SAFE_DATA
-        ;; Zero all ZMM registers using the standard library macro.
-        clear_scratch_zmms_asm
-%endif
 
         add     rsp, 8*32
         pop     r15
@@ -544,9 +540,6 @@ align_label
         vmovdqu64       [rsp + 32*5], ymm0
         vmovdqu64       [rsp + 32*6], ymm0
         vmovdqu64       [rsp + 32*7], ymm0
-%ifdef SAFE_DATA
-        clear_scratch_zmms_asm
-%endif
 
         add     rsp, 8*32
         pop     r15
@@ -603,9 +596,6 @@ align_label
         vmovdqu64       [rsp + 32*5], ymm0
         vmovdqu64       [rsp + 32*6], ymm0
         vmovdqu64       [rsp + 32*7], ymm0
-%ifdef SAFE_DATA
-        clear_scratch_zmms_asm
-%endif
 
         add     rsp, 8*32
         pop     r15
@@ -662,9 +652,6 @@ align_label
         vmovdqu64       [rsp + 32*5], ymm0
         vmovdqu64       [rsp + 32*6], ymm0
         vmovdqu64       [rsp + 32*7], ymm0
-%ifdef SAFE_DATA
-        clear_scratch_zmms_asm
-%endif
 
         add     rsp, 8*32
         pop     r15
@@ -741,9 +728,6 @@ align_label
         vmovdqu64       [rsp + 32*5], ymm0
         vmovdqu64       [rsp + 32*6], ymm0
         vmovdqu64       [rsp + 32*7], ymm0
-%ifdef SAFE_DATA
-        clear_scratch_zmms_asm
-%endif
 
         add     rsp, 8*32
         pop     r15
@@ -820,9 +804,6 @@ align_label
         vmovdqu64       [rsp + 32*5], ymm0
         vmovdqu64       [rsp + 32*6], ymm0
         vmovdqu64       [rsp + 32*7], ymm0
-%ifdef SAFE_DATA
-        clear_scratch_zmms_asm
-%endif
 
         add     rsp, 32 * 8
         pop     r15

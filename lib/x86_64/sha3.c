@@ -165,6 +165,9 @@ sha3_ctx_final(sha3_ctx_t *ctx, uint8_t *output, uint64_t outputLen)
                 if (outputLen > 0)
                         KeccakF1600_StatePermute(ctx->state);
         }
+#ifdef SAFE_DATA
+        clear_scratch_xmms_sse();
+#endif
 }
 
 /*
