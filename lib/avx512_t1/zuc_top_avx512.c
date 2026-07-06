@@ -168,6 +168,7 @@ zuc_nia6_16_buffer_job_gfni_avx512(const void *const pKey[NUM_AVX512_BUFS], cons
         /* Clear sensitive data (in registers and stack) */
         clear_mem(&state, sizeof(state));
         clear_mem(&keys, sizeof(keys));
+        clear_scratch_gps();
 #endif
 }
 
@@ -356,5 +357,6 @@ zuc_nca6_16_buffer_job_gfni_avx512(const void *const pKey[NUM_AVX512_BUFS], uint
         clear_mem(&singlePktState, sizeof(singlePktState));
         clear_mem(&state, sizeof(state));
         clear_mem(&keys, sizeof(keys));
+        clear_scratch_gps();
 #endif
 }
