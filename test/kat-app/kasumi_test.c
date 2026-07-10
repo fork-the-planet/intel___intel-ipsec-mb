@@ -65,20 +65,6 @@ validate_kasumi_f8_1_block(struct IMB_MGR *mb_mgr);
 static int
 validate_kasumi_f9(IMB_MGR *mgr);
 
-struct kasumi_test_case {
-        int (*func)(struct IMB_MGR *);
-        const char *func_name;
-};
-
-/* kasumi f8 validation function pointer table */
-static const struct kasumi_test_case kasumi_f8_func_tab[] = {
-        { validate_kasumi_f8_1_block, "validate_kasumi_f8_1_block" },
-};
-
-/* kasumi f9 validation function pointer table */
-static const struct kasumi_test_case kasumi_f9_func_tab[] = { { validate_kasumi_f9,
-                                                                "validate_kasumi_f9" } };
-
 static int
 submit_kasumi_f8_jobs(struct IMB_MGR *mb_mgr, kasumi_key_sched_t **keys, uint64_t **ivs,
                       uint8_t **const src, uint8_t **const dst, const uint32_t *bytelens,
@@ -569,7 +555,6 @@ kasumi_test(struct IMB_MGR *mb_mgr)
         struct test_json_alloc_ctx *f9_jctx = NULL;
         struct test_json_alloc_ctx *f8_jctx = NULL;
         int errors = 0;
-        unsigned i;
 
         if (load_mac_vectors(kat_vector_dir, "kasumi_f9_test.json", &kasumi_f9_vectors, &f9_jctx) <
             0)
@@ -581,24 +566,20 @@ kasumi_test(struct IMB_MGR *mb_mgr)
         }
 
         test_suite_start(&ts, "KASUMI-F8");
-        for (i = 0; i < DIM(kasumi_f8_func_tab); i++) {
-                if (kasumi_f8_func_tab[i].func(mb_mgr)) {
-                        printf("%s: FAIL\n", kasumi_f8_func_tab[i].func_name);
-                        test_suite_update(&ts, 0, 1);
-                } else {
-                        test_suite_update(&ts, 1, 0);
-                }
+        if (validate_kasumi_f8_1_block(mb_mgr)) {
+                printf("validate_kasumi_f8_1_block: FAIL\n");
+                test_suite_update(&ts, 0, 1);
+        } else {
+                test_suite_update(&ts, 1, 0);
         }
         errors += test_suite_end(&ts);
 
         test_suite_start(&ts, "KASUMI-F9");
-        for (i = 0; i < DIM(kasumi_f9_func_tab); i++) {
-                if (kasumi_f9_func_tab[i].func(mb_mgr)) {
-                        printf("%s: FAIL\n", kasumi_f9_func_tab[i].func_name);
-                        test_suite_update(&ts, 0, 1);
-                } else {
-                        test_suite_update(&ts, 1, 0);
-                }
+        if (validate_kasumi_f9(mb_mgr)) {
+                printf("validate_kasumi_f9: FAIL\n");
+                test_suite_update(&ts, 0, 1);
+        } else {
+                test_suite_update(&ts, 1, 0);
         }
         errors += test_suite_end(&ts);
 
