@@ -589,20 +589,6 @@ imb_ghash(const struct gcm_key_data *key_data, const void *src, const uint64_t l
         CALL_GHASH(state, key_data, src, len, auth_tag, auth_tag_len);
 }
 
-IMB_DLL_EXPORT void
-imb_kasumi_f8_1_buffer(const kasumi_key_sched_t *exp_key, const uint64_t iv, const void *src,
-                       void *dst, const uint32_t len, IMB_MGR *state)
-{
-        CALL_KASUMI_F8_1_BUFFER(state, exp_key, iv, src, dst, len);
-}
-
-IMB_DLL_EXPORT void
-imb_kasumi_f9_1_buffer(const kasumi_key_sched_t *exp_key, const void *src, const uint32_t len,
-                       void *tag, IMB_MGR *state)
-{
-        CALL_KASUMI_F9_1_BUFFER(state, exp_key, src, len, tag);
-}
-
 IMB_DLL_EXPORT int
 imb_kasumi_init_f8_key_sched(const void *key, kasumi_key_sched_t *exp_key, IMB_MGR *state)
 {

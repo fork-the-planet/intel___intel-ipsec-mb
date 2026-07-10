@@ -430,7 +430,6 @@ init_mb_mgr_sse_t1_internal(IMB_MGR *state, const int reset_mgrs)
         state->aes128_cfb_one = aes_cfb_128_one_sse;
         state->aes256_cfb_one = aes_cfb_256_one_sse;
 
-
         state->f8_1_buffer = kasumi_f8_1_buffer_sse;
         state->f9_1_buffer = kasumi_f9_1_buffer_sse;
         state->kasumi_init_f8_key_sched = kasumi_init_f8_key_sched_sse;

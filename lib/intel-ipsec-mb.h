@@ -2744,48 +2744,6 @@ IMB_DLL_EXPORT int
 kasumi_f9_iv_gen(const uint32_t count, const uint32_t fresh, void *iv_ptr);
 
 /**
- * @brief Kasumi byte-level f8 operation on a single buffer
- *
- * This function performs Kasumi f8 operation on a single buffer. The key has
- * already been scheduled with kasumi_init_f8_key_sched().
- * No extra bits are modified.
- *
- * @param [in]  exp_key  Context where the scheduled keys are stored
- * @param [in]  iv       Initialization vector
- * @param [in]  src      Input buffer
- * @param [out] dst      Output buffer
- * @param [in]  len      Length in BYTES
- * @param [in] state  Pointer to initialized IMB_MGR structure
- *
- * @deprecated Please use the job API instead.
- *
- */
-IMB_DLL_EXPORT void
-imb_kasumi_f8_1_buffer(const kasumi_key_sched_t *exp_key, const uint64_t iv, const void *src,
-                       void *dst, const uint32_t len, IMB_MGR *state);
-
-/**
- * @brief Kasumi bit-level f9 operation on a single buffer.
- *
- * The first QWORD of in represents the COUNT and FRESH, the last QWORD
- * represents the DIRECTION and PADDING. (See 3GPP TS 35.201 v10.0 section 4)
- *
- * The key has already been scheduled with kasumi_init_f9_key_sched().
- *
- * @param [in]  exp_key Context where the scheduled keys are stored
- * @param [in]  src     Input buffer
- * @param [in]  len     Length in BYTES of the data to be hashed
- * @param [out] tag     Computed digest
- * @param [in] state  Pointer to initialized IMB_MGR structure
- *
- * @deprecated Please use the job API instead.
- *
- */
-IMB_DLL_EXPORT void
-imb_kasumi_f9_1_buffer(const kasumi_key_sched_t *exp_key, const void *src, const uint32_t len,
-                       void *tag, IMB_MGR *state);
-
-/**
  * KASUMI F8 key schedule init function.
  *
  * @param [in]  key      Confidentiality key (expected in LE format)
@@ -3164,10 +3122,6 @@ imb_clear_mem(void *mem, const size_t size);
 #define IMB_CHACHA20_POLY1305_DEC_FINALIZE(_mgr, _ctx, _tag, _tagl)                                \
         imb_chacha20_poly1305_dec_finalize(_ctx, _tag, _tagl, _mgr)
 
-#define IMB_KASUMI_F8_1_BUFFER(_mgr, _exp_key, _iv, _src, _dst, _len)                              \
-        imb_kasumi_f8_1_buffer(_exp_key, _iv, _src, _dst, _len, _mgr)
-#define IMB_KASUMI_F9_1_BUFFER(_mgr, _exp_key, _src, _len, _tag)                                   \
-        imb_kasumi_f9_1_buffer(_exp_key, _src, _len, _tag, _mgr)
 #define IMB_KASUMI_INIT_F8_KEY_SCHED(_mgr, _key, _exp_key)                                         \
         imb_kasumi_init_f8_key_sched(_key, _exp_key, _mgr)
 #define IMB_KASUMI_INIT_F9_KEY_SCHED(_mgr, _key, _exp_key)                                         \
