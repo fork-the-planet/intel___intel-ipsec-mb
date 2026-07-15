@@ -74,6 +74,13 @@ extern const OSSL_DISPATCH prov_sha256_functions[];
 extern const OSSL_DISPATCH prov_sha384_functions[];
 extern const OSSL_DISPATCH prov_sha512_functions[];
 
+extern const OSSL_DISPATCH prov_sha3_224_functions[];
+extern const OSSL_DISPATCH prov_sha3_256_functions[];
+extern const OSSL_DISPATCH prov_sha3_384_functions[];
+extern const OSSL_DISPATCH prov_sha3_512_functions[];
+extern const OSSL_DISPATCH prov_shake128_functions[];
+extern const OSSL_DISPATCH prov_shake256_functions[];
+
 extern const OSSL_DISPATCH prov_aes128cfb_functions[];
 extern const OSSL_DISPATCH prov_aes192cfb_functions[];
 extern const OSSL_DISPATCH prov_aes256cfb_functions[];
@@ -172,6 +179,12 @@ static const OSSL_ALGORITHM prov_digests[] = {
         { PROV_NAMES_SHA2_256, PROV_DEFAULT_PROPERTIES, prov_sha256_functions },
         { PROV_NAMES_SHA2_384, PROV_DEFAULT_PROPERTIES, prov_sha384_functions },
         { PROV_NAMES_SHA2_512, PROV_DEFAULT_PROPERTIES, prov_sha512_functions },
+        { PROV_NAMES_SHA3_224, PROV_DEFAULT_PROPERTIES, prov_sha3_224_functions },
+        { PROV_NAMES_SHA3_256, PROV_DEFAULT_PROPERTIES, prov_sha3_256_functions },
+        { PROV_NAMES_SHA3_384, PROV_DEFAULT_PROPERTIES, prov_sha3_384_functions },
+        { PROV_NAMES_SHA3_512, PROV_DEFAULT_PROPERTIES, prov_sha3_512_functions },
+        { PROV_NAMES_SHAKE128, PROV_DEFAULT_PROPERTIES, prov_shake128_functions },
+        { PROV_NAMES_SHAKE256, PROV_DEFAULT_PROPERTIES, prov_shake256_functions },
         { NULL, NULL, NULL }
 };
 

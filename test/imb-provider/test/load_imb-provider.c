@@ -663,10 +663,102 @@ test_provider_fetch_hash(const char *hash_name)
 void
 test_provider_fetch_all_hashes()
 {
-        const char *hashes[] = { "SHA1", "SHA224", "SHA256", "SHA384", "SHA512" };
+        const char *hashes[] = {
+                /* SHA-1 / SHA-2 */
+                "SHA1",
+                "SHA224",
+                "SHA256",
+                "SHA384",
+                "SHA512",
+                /* SHA-3 */
+                "SHA3-224",
+                "SHA3-256",
+                "SHA3-384",
+                "SHA3-512",
+                /* SHAKE (default output length) */
+                "SHAKE-128",
+                "SHAKE-256",
+        };
         for (size_t i = 0; i < sizeof(hashes) / sizeof(hashes[0]); i++) {
                 test_provider_fetch_hash(hashes[i]);
         }
+}
+
+/*
+ * Test that SHAKE-128 and SHAKE-256 accept a caller-supplied XOFLEN.
+ * Exercises the SETTABLE_CTX_PARAMS dispatch path and
+ * prov_shake_set_ctx_params().  The provider's update/final path requires an
+ * async job context, so we only verify fetch → init → set_params here.
+ */
+void
+test_provider_shake_xoflen(const char *shake_name, size_t xoflen)
+{
+        int ok = 0;
+
+        OSSL_LIB_CTX *libctx = OSSL_LIB_CTX_new();
+        if (libctx == NULL) {
+                fprintf(stderr, "Failed to create library context\n");
+                exit(EXIT_FAILURE);
+        }
+
+        OSSL_PROVIDER *provider = load_imb_provider(libctx);
+        if (provider == NULL) {
+                fprintf(stderr, "Failed to load provider\n");
+                OSSL_LIB_CTX_free(libctx);
+                exit(EXIT_FAILURE);
+        }
+
+        EVP_MD *md = EVP_MD_fetch(libctx, shake_name, "provider=imb-provider");
+        if (md == NULL) {
+                fprintf(stderr, "Failed to fetch %s from provider\n", shake_name);
+                goto err;
+        }
+
+        EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+        if (ctx == NULL) {
+                fprintf(stderr, "Failed to create EVP_MD_CTX\n");
+                goto err_md;
+        }
+
+        if (!EVP_DigestInit_ex(ctx, md, NULL)) {
+                fprintf(stderr, "%s: DigestInit failed\n", shake_name);
+                goto err_ctx;
+        }
+
+        OSSL_PARAM params[2];
+        params[0] = OSSL_PARAM_construct_size_t(OSSL_DIGEST_PARAM_XOFLEN, &xoflen);
+        params[1] = OSSL_PARAM_construct_end();
+        if (!EVP_MD_CTX_set_params(ctx, params)) {
+                fprintf(stderr, "%s: set XOFLEN=%zu failed\n", shake_name, xoflen);
+                goto err_ctx;
+        }
+
+        ok = 1;
+        printf("test_provider_%s_xoflen_%zu passed\n", shake_name, xoflen);
+
+err_ctx:
+        EVP_MD_CTX_free(ctx);
+err_md:
+        EVP_MD_free(md);
+err:
+        OSSL_PROVIDER_unload(provider);
+        OSSL_LIB_CTX_free(libctx);
+        if (!ok)
+                exit(EXIT_FAILURE);
+}
+
+void
+test_provider_fetch_all_shake_xoflen()
+{
+        /* Default (fits in auths[]) */
+        test_provider_shake_xoflen("SHAKE-128", 32);
+        test_provider_shake_xoflen("SHAKE-256", 64);
+        /* Non-default lengths that fit in auths[] */
+        test_provider_shake_xoflen("SHAKE-128", 16);
+        test_provider_shake_xoflen("SHAKE-256", 48);
+        /* Lengths that exceed auths[] and require heap allocation */
+        test_provider_shake_xoflen("SHAKE-128", 128);
+        test_provider_shake_xoflen("SHAKE-256", 256);
 }
 
 void
@@ -740,6 +832,7 @@ main()
 
         test_provider_fetch_all_hashes();
         test_provider_fetch_all_ciphers();
+        test_provider_fetch_all_shake_xoflen();
 
         test_provider_self_test();
 

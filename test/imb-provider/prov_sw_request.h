@@ -100,6 +100,9 @@ typedef struct _alg_context {
         unsigned char *enc_keys;
         unsigned char *dec_keys;
         uint8_t auths[64];
+        uint8_t *xof_buf; /* SHAKE XOF output buffer; used only when the caller
+                           * requests an output length > sizeof(auths) via
+                           * OSSL_DIGEST_PARAM_XOFLEN. NULL in all other cases.*/
         unsigned char *aad;
         int aad_len;
 

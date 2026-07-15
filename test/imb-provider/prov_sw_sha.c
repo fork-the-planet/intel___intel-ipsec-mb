@@ -50,6 +50,14 @@ sha_async_init(ALG_CTX *ctx)
                 return 0;
         }
 
+        /* Reset hash output state for re-initialization.
+         * Keep xof_buf allocated so the same CTX can be reused across
+         * repeated init→update→final calls (e.g. openssl speed). */
+        if (ctx->xof_buf != NULL && ctx->md_size > 0)
+                OPENSSL_cleanse(ctx->xof_buf, ctx->md_size);
+        else
+                OPENSSL_cleanse(ctx->auths, sizeof(ctx->auths));
+
         return 1;
 }
 
@@ -80,7 +88,7 @@ sha_async_update(ALG_CTX *ctx, const unsigned char *in, size_t len)
 
         imb_job->cipher_direction = IMB_DIR_ENCRYPT;
         imb_job->chain_order = IMB_ORDER_HASH_CIPHER;
-        imb_job->auth_tag_output = ctx->auths;
+        imb_job->auth_tag_output = ctx->xof_buf ? ctx->xof_buf : ctx->auths;
         imb_job->auth_tag_output_len_in_bytes = ctx->md_size;
         imb_job->src = in;
         imb_job->msg_len_to_hash_in_bytes = len;
@@ -105,7 +113,8 @@ sha_async_final(ALG_CTX *ctx, unsigned char *md)
                 return 0;
         }
 
-        memcpy(md, ctx->auths, ctx->md_size);
+        const uint8_t *src = ctx->xof_buf ? ctx->xof_buf : ctx->auths;
+        memcpy(md, src, ctx->md_size);
         return 1;
 }
 
@@ -113,7 +122,13 @@ int
 sha_async_cleanup(ALG_CTX *ctx)
 {
         if (ctx != NULL) {
-                memset(ctx, 0, sizeof(ALG_CTX));
+                if (ctx->xof_buf != NULL) {
+                        if (ctx->md_size > 0)
+                                OPENSSL_cleanse(ctx->xof_buf, ctx->md_size);
+                        OPENSSL_free(ctx->xof_buf);
+                        ctx->xof_buf = NULL;
+                }
+                OPENSSL_cleanse(ctx, sizeof(ALG_CTX));
         }
         return 1;
 }
